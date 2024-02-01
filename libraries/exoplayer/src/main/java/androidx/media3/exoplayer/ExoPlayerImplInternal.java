@@ -1227,6 +1227,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
           mediaClock.syncAndGetPositionUs(
               /* isReadingAhead= */ playingPeriodHolder != queue.getReadingPeriod());
       long periodPositionUs = playingPeriodHolder.toPeriodTime(rendererPositionUs);
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "updatePlaybackPositions rendererPositionUs: %d  (periodPositionUs: %d)", rendererPositionUs, periodPositionUs);
+
       maybeTriggerPendingMessages(playbackInfo.positionUs, periodPositionUs);
       if (mediaClock.hasSkippedSilenceSinceLastCall()) {
         // Only report silence skipping if there isn't already another discontinuity.
@@ -1694,6 +1698,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
         playingMediaPeriod == null
             ? MediaPeriodQueue.INITIAL_RENDERER_POSITION_OFFSET_US + periodPositionUs
             : playingMediaPeriod.toRendererTime(periodPositionUs);
+
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "resetRendererPosition: %d", rendererPositionUs);
+
     mediaClock.resetPosition(rendererPositionUs);
     for (RendererHolder rendererHolder : renderers) {
       rendererHolder.resetPosition(playingMediaPeriod, rendererPositionUs);
@@ -2559,6 +2567,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
       // We don't have a successor to advance the reading period to or we want to let them end
       // intentionally to pause at the end of the period.
       if (readingPeriodHolder.info.isFinal || pendingPauseAtEndOfPeriod) {
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "maybeUpdateReadingPeriod readingPeriodHolder.info.isFinal: %s pendingPauseAtEndOfPeriod: %s", readingPeriodHolder.info.isFinal, pendingPauseAtEndOfPeriod);
+
         for (RendererHolder renderer : renderers) {
           if (!renderer.isReadingFromPeriod(readingPeriodHolder)) {
             continue;
@@ -2571,6 +2582,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
                         && readingPeriodHolder.info.durationUs != C.TIME_END_OF_SOURCE
                     ? readingPeriodHolder.getRendererOffset() + readingPeriodHolder.info.durationUs
                     : C.TIME_UNSET;
+
+            //MIREGO
+            Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "maybeUpdateReadingPeriod setCurrentStreamFinal renderer: %s streamEndPositionUs: %d", renderer, streamEndPositionUs);
+
             renderer.setCurrentStreamFinal(readingPeriodHolder, streamEndPositionUs);
           }
         }
@@ -2579,6 +2594,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
     }
 
     if (!hasReadingPeriodFinishedReading()) {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "maybeUpdateReadingPeriod not finished reading. Period durationUs: %d  rendererOffset: %d",
+          readingPeriodHolder.info.durationUs, readingPeriodHolder.getRendererOffset());
       return;
     }
 
@@ -2586,6 +2604,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
       // Reading period has already advanced to pre-warming period.
       return;
     }
+
+    Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "maybeUpdateReadingPeriod finished reading. Period durationUs: %d  rendererOffset: %d  next prepared: %s",
+        readingPeriodHolder.info.durationUs, readingPeriodHolder.getRendererOffset(), readingPeriodHolder.getNext().prepared);
 
     if (!readingPeriodHolder.getNext().prepared
         && rendererPositionUs < readingPeriodHolder.getNext().getStartPositionRendererTime()) {
@@ -2610,6 +2631,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
         && ((hasSecondaryRenderers && prewarmingMediaPeriodDiscontinuity != C.TIME_UNSET)
             || readingPeriodHolder.mediaPeriod.readDiscontinuity() != C.TIME_UNSET)) {
       prewarmingMediaPeriodDiscontinuity = C.TIME_UNSET;
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "maybeUpdateReadingPeriod new period discontinuity");
+
       // The new period starts with a discontinuity, so unless a pre-warming renderer is handling
       // the discontinuity, the renderers will play out all data, then
       // be disabled and re-enabled when they start playing the next period.
@@ -2854,6 +2878,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
         return false;
       }
     }
+
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "hasReadingPeriodFinishedReading returns true");
+
     return true;
   }
 
