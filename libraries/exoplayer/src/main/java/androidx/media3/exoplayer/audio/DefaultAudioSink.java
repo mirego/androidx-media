@@ -685,7 +685,7 @@ public final class DefaultAudioSink implements AudioSink {
     long result = applySkipping(applyMediaPositionParameters(positionUs));
 
     // MIREGO
-    Log.v(Log.LOG_LEVEL_VERBOSE4, TAG, "getCurrentPosition %d ms (savedPos: %d) frames to duration: %d ms result: %d ms  skipped frames: %d  delta: %d",
+    Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "getCurrentPosition %d ms (savedPos: %d) frames to duration: %d ms result: %d ms  skipped frames: %d  delta: %d",
         positionUs / 1000, savedPos / 1000, framesToDuration / 1000, result / 1000, audioProcessorChain.getSkippedOutputFrameCount(), (framesToDuration - positionUs) / 1000);
 
     return result;
@@ -923,14 +923,13 @@ public final class DefaultAudioSink implements AudioSink {
       throws InitializationException, WriteException {
     Assertions.checkArgument(inputBuffer == null || buffer == inputBuffer);
 
-    // MIREGO
-    Log.v(Log.LOG_LEVEL_VERBOSE4, TAG, "handleBuffer %s", buffer);
-
     if (pendingConfiguration != null) {
-      if (!drainToEndOfStream()) {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "handleBuffer pendingConfiguration drainToEndOfStream()");
 
+      if (!drainToEndOfStream()) {
         // MIREGO
-        Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "handleBuffer pendingConfiguration draining, data still pending");
+        Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "handleBuffer pendingConfiguration draining, data still pending");
 
         // There's still pending data in audio processors to write to the track.
         return false;
@@ -1007,6 +1006,9 @@ public final class DefaultAudioSink implements AudioSink {
     }
 
     if (!audioTrackPositionTracker.mayHandleBuffer(getWrittenFrames())) {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "handleBuffer !audioTrackPositionTracker.mayHandleBuffer(%d)", getWrittenFrames());
+
       return false;
     }
 
@@ -1105,6 +1107,10 @@ public final class DefaultAudioSink implements AudioSink {
     if (!inputBuffer.hasRemaining()) {
       inputBuffer = null;
       inputBufferAccessUnitCount = 0;
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "handleBuffer !inputBuffer.hasRemaining()");
+
       return true;
     }
 
@@ -1245,6 +1251,10 @@ public final class DefaultAudioSink implements AudioSink {
         drainOutputBuffer(avSyncPresentationTimeUs);
         if (outputBuffer != null) {
           // drainOutputBuffer method is providing back pressure.
+
+          // MIREGO
+          Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "processBuffers remaining input");
+
           return;
         }
       }
@@ -1261,6 +1271,9 @@ public final class DefaultAudioSink implements AudioSink {
    * @return Whether the buffers have been fully drained.
    */
   private boolean drainToEndOfStream() throws WriteException {
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "drainToEndOfStream");
+
     if (!audioProcessingPipeline.isOperational()) {
       drainOutputBuffer(C.TIME_END_OF_SOURCE);
       return outputBuffer == null;
@@ -1299,6 +1312,10 @@ public final class DefaultAudioSink implements AudioSink {
   @SuppressWarnings("ReferenceEquality")
   private void drainOutputBuffer(long avSyncPresentationTimeUs) throws WriteException {
     if (outputBuffer == null) {
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "writeBuffer outputBuffer == null");
+
       return;
     }
     if (writeExceptionPendingExceptionHolder.shouldWaitBeforeRetry()) {
@@ -1321,12 +1338,18 @@ public final class DefaultAudioSink implements AudioSink {
               audioTrack, outputBuffer, bytesRemaining, avSyncPresentationTimeUs);
     } else {
       bytesWrittenOrError = writeNonBlocking(audioTrack, outputBuffer, bytesRemaining);
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "writeBuffer writeNonBlocking bytesWrittenOrError: %d  bytes remaining %d  (buffer: %s)", bytesWrittenOrError, bytesRemaining, outputBuffer);
     }
 
     lastFeedElapsedRealtimeMs = SystemClock.elapsedRealtime();
 
     if (bytesWrittenOrError < 0) {
       int error = bytesWrittenOrError;
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "writeBuffer error: %d", error);
 
       // Treat a write error on a previously successful offload channel as recoverable
       // without disabling offload. Offload will be disabled if offload channel was not successfully
@@ -1381,12 +1404,19 @@ public final class DefaultAudioSink implements AudioSink {
     if (configuration.outputMode == OUTPUT_MODE_PCM) {
       writtenPcmBytes += bytesWritten;
     }
+
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "writeBuffer bytesWritten: %d  bytesRemaining: %d", bytesWritten, bytesRemaining);
+
     if (bytesWritten == bytesRemaining) {
       if (configuration.outputMode != OUTPUT_MODE_PCM) {
         // When playing non-PCM, the inputBuffer is never processed, thus the last inputBuffer
         // must be the current input buffer.
         Assertions.checkState(outputBuffer == inputBuffer);
         writtenEncodedFrames += (long) framesPerEncodedSample * inputBufferAccessUnitCount;
+
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "writeBuffer writtenEncodedFrames: %d", writtenEncodedFrames);
       }
       outputBuffer = null;
     }
@@ -1959,7 +1989,11 @@ public final class DefaultAudioSink implements AudioSink {
   }
 
   private static int writeNonBlocking(AudioTrack audioTrack, ByteBuffer buffer, int size) {
-    return audioTrack.write(buffer, size, AudioTrack.WRITE_NON_BLOCKING);
+    // MIREGO START
+    int result = audioTrack.write(buffer, size, AudioTrack.WRITE_NON_BLOCKING);
+    Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "writeBuffer writeNonBlockingV21 size: %d  track: %s", size, audioTrack);
+    return result;
+    // MIREGO END
   }
 
   private int writeNonBlockingWithAvSync(
