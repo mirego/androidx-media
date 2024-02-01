@@ -27,6 +27,7 @@ import androidx.annotation.Nullable;
 import androidx.media3.common.C;
 import androidx.media3.common.util.BackgroundExecutor;
 import androidx.media3.common.util.Clock;
+import androidx.media3.common.util.Log;
 import androidx.media3.common.util.NetworkTypeObserver;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.common.util.Util;
@@ -52,6 +53,8 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
  */
 @UnstableApi
 public final class DefaultBandwidthMeter implements BandwidthMeter, TransferListener {
+
+  private static final String TAG = "BandwidthMeter";
 
   /** Default initial Wifi bitrate estimate in bits per second. */
   public static final ImmutableList<Long> DEFAULT_INITIAL_BITRATE_ESTIMATES_WIFI =
@@ -406,6 +409,11 @@ public final class DefaultBandwidthMeter implements BandwidthMeter, TransferList
     int sampleElapsedTimeMs = (int) (nowMs - sampleStartTimeMs);
     totalElapsedTimeMs += sampleElapsedTimeMs;
     totalBytesTransferred += sampleBytesTransferred;
+
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "onTransferEnd sampleElapsedTimeMs: %d  sampleBytesTransferred: %d",
+        sampleElapsedTimeMs, sampleBytesTransferred);
+
     if (sampleElapsedTimeMs > 0) {
       float bitsPerSecond = (sampleBytesTransferred * 8000f) / sampleElapsedTimeMs;
       slidingPercentile.addSample((int) Math.sqrt(sampleBytesTransferred), bitsPerSecond);
