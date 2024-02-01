@@ -544,6 +544,9 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
     if (e instanceof NotProvisionedException) {
       provisioningManager.provisionRequired(this);
     } else {
+      // MIREGO
+      callback.onKeyError(e);
+
       onError(
           e,
           thrownByExoMediaDrm
