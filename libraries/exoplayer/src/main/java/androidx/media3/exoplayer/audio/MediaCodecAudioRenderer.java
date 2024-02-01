@@ -762,7 +762,7 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
     nextBufferToWritePresentationTimeUs = C.TIME_UNSET;
 
     // MIREGO
-    Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "processOutputBuffer (decryptOnlyCodecFormat %s  bufferFlags: %d isDecodeOnlyBuffer %s)",
+    Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "processOutputBuffer (decryptOnlyCodecFormat %s  bufferFlags: %d isDecodeOnlyBuffer %s)",
         decryptOnlyCodecFormat, bufferFlags, isDecodeOnlyBuffer);
 
     if (decryptOnlyCodecFormat != null
@@ -805,6 +805,9 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
     }
 
     if (fullyConsumed) {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "processOutputBuffer fully consumed");
+
       if (codec != null) {
         codec.releaseOutputBuffer(bufferIndex, false);
       }
