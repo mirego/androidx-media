@@ -77,6 +77,7 @@ public class PlaybackException extends Exception implements Bundleable {
         ERROR_CODE_DECODING_FAILED,
         ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
         ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
+        ERROR_CODE_AUDIO_TRACK_INCONSISTENT_SAMPLE_RATE,
         ERROR_CODE_AUDIO_TRACK_INIT_FAILED,
         ERROR_CODE_AUDIO_TRACK_WRITE_FAILED,
         ERROR_CODE_DRM_UNSPECIFIED,
@@ -223,6 +224,9 @@ public class PlaybackException extends Exception implements Bundleable {
   // TODO(b/299907254): Stabilize error code, remove @UnstableApi annotation, and add to IntDef
   /** Caused by an AudioTrack write operation failure in offload mode. */
   @UnstableApi public static final int ERROR_CODE_AUDIO_TRACK_OFFLOAD_WRITE_FAILED = 5003;
+
+  /** MIREGO: Caused by an inconsistent sample rate between the container and the track atom (recoverable). */
+  public static final int ERROR_CODE_AUDIO_TRACK_INCONSISTENT_SAMPLE_RATE = 5901;
 
   // DRM errors (6xxx).
 
