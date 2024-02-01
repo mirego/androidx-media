@@ -724,6 +724,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
     }
   }
 
+  boolean hasNotifiedAvDesyncError = false;  // MIREGO
+  boolean hasNotifiedAvDesyncSkippedFramesError = false;  // MIREGO
+
   @Override
   protected void onStarted() {
     super.onStarted();
@@ -738,6 +741,8 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
     // MIREGO added following block
     firstFrameRenderedSystemMs = 0;
     lastRenderedTunneledBufferPresentationTimeUs = 0;
+    hasNotifiedAvDesyncError = false;
+    hasNotifiedAvDesyncSkippedFramesError = false;
   }
 
   @Override
@@ -1441,16 +1446,28 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
     } else { // MIREGO ADDED else block
       skipCount++;
       long systemTimeUs = systemTimeNs / 1000;
-      if ((systemTimeUs - lastRender) > 50000) {
+      long timeSinceLastRender = systemTimeUs - lastRender;
+      if ( timeSinceLastRender > 50000) {
         Log.v(Log.LOG_LEVEL_VERBOSE1, TAG,
             "processOutputBuffer skip render for %dms (count: %d) earlyUs: %d",
             (systemTimeUs - lastRender) / 1000, skipCount, earlyUs);
+        if ( timeSinceLastRender > 500000 && !hasNotifiedAvDesyncSkippedFramesError) {
+          hasNotifiedAvDesyncSkippedFramesError = true;
+          Log.e(TAG, new PlaybackException("AV desync: skipped video frames for more than 500 ms", new RuntimeException(), PlaybackException.ERROR_CODE_AUDIO_VIDEO_DESYNC));
+        }
       }
     }
 
-    // MIREGO
+    // MIREGO START
     Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "processOutputBuffer, unadjustedFrameReleaseTimeUs: %d  bufferPresentationTimeUs: %d  positionUs: %d  earlyUs %d  playbackSpeed: %f",
         unadjustedFrameReleaseTimeNs / 1000, bufferPresentationTimeUs, positionUs, earlyUs, getPlaybackSpeed());
+
+    if ( (earlyUs < -750000 || earlyUs > 750000) && !hasNotifiedAvDesyncError) {
+      Log.e(TAG, new PlaybackException("AV desync: video is offset by " + (earlyUs / 1000) + " ms",
+          new RuntimeException(), PlaybackException.ERROR_CODE_AUDIO_VIDEO_DESYNC));
+      hasNotifiedAvDesyncError = true;
+    }
+    // MIREGO END
 
     if (Util.SDK_INT >= 21) {
       // Let the underlying framework time the release.
