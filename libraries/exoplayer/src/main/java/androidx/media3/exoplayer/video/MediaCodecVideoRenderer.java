@@ -188,6 +188,18 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
   private long periodDurationUs;
   private boolean pendingVideoSinkInputStreamChange;
 
+  // MIREGO added block
+  int skipCount = 0;
+  long lastRender = 0;
+  long elapsedRealtimeNowUsPrev = 0;
+  long elapsedRealtimeUsPrev = 0;
+  long positionUsPrev = 0;
+  long bufferPresentationTimeUsPrev = 0;
+  long frameDurationUs = 0;
+  long firstFrameRenderedSystemMs = 0;
+  long lastRenderedTunneledBufferPresentationTimeUs = 0;
+  static final long IGNORE_PRIMING_DROPPED_FRAMES_MS = 400; // when the tunneling is priming, it's expected that we'll get dropped frames. Ignore them.
+
   /**
    * @param context A context.
    * @param mediaCodecSelector A decoder selector.
@@ -861,6 +873,10 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
     } else {
       videoFrameReleaseControl.onStarted();
     }
+
+    // MIREGO added following block
+    firstFrameRenderedSystemMs = 0;
+    lastRenderedTunneledBufferPresentationTimeUs = 0;
   }
 
   @Override
@@ -1373,6 +1389,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
       height = rotatedHeight;
       pixelWidthHeightRatio = 1 / pixelWidthHeightRatio;
     }
+    frameDurationUs = (long) (1000000.0f / format.frameRate); // MIREGO added
     decodedVideoSize = new VideoSize(width, height, pixelWidthHeightRatio);
 
     if (videoSink != null && pendingVideoSinkInputStreamChange) {
@@ -1431,14 +1448,6 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
       }
     }
   }
-
-  // MIREGO added block
-  int skipCount = 0;
-  long lastRender = 0;
-  long elapsedRealtimeNowUsPrev = 0;
-  long elapsedRealtimeUsPrev = 0;
-  long positionUsPrev = 0;
-  long bufferPresentationTimeUsPrev = 0;
 
   @Override
   protected boolean processOutputBuffer(
@@ -1609,7 +1618,45 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
     maybeNotifyVideoSizeChanged(decodedVideoSize);
     decoderCounters.renderedOutputBufferCount++;
     maybeNotifyRenderedFirstFrame();
+
+    // MIREGO added
+    detectTunnelingDroppedFrames(presentationTimeUs);
+
     onProcessedOutputBuffer(presentationTimeUs);
+  }
+
+  /**
+   * MIREGO added
+   * Dropped frames reporting was not supported. To detect dropped frames, we use the onProcessedTunneledBuffer() callback.
+   * When we receive confirmation a frame has been rendered, we can check the delta between its timestamp and the
+   * timestamp of the previously rendered frame.
+   */
+  private void detectTunnelingDroppedFrames(long presentationTimeUs) {
+    long systemMs = System.currentTimeMillis();
+    if (firstFrameRenderedSystemMs == 0) {
+      firstFrameRenderedSystemMs = systemMs;
+    }
+
+    if (presentationTimeUs < lastRenderedTunneledBufferPresentationTimeUs) {
+      // workaround an issue on a platform where the codec sends us a faulty presentation time
+      // in that case, fake that we got what we expected.
+      presentationTimeUs = lastRenderedTunneledBufferPresentationTimeUs + frameDurationUs;
+    }
+
+    // each frame has a timestamp that is (previousFrameTimeStamp + 1 / frameRate)
+    // so if we rendered a frame more than (1 / framerate) later than the previous one, we dropped frame(s)
+    if ( (lastRenderedTunneledBufferPresentationTimeUs > 0)
+        && (frameDurationUs > 0)
+        && (systemMs - firstFrameRenderedSystemMs > IGNORE_PRIMING_DROPPED_FRAMES_MS)
+    ) {
+      // round to the nearest since timestamps don't have infinite precision (otherwise 0.99999999 of a frame duration would compute as 0 frame)
+      int framesElapsed = (int) (((presentationTimeUs - lastRenderedTunneledBufferPresentationTimeUs) + (frameDurationUs / 2)) / frameDurationUs);
+      if (framesElapsed > 1) {
+        updateDroppedBufferCounters(/* droppedInputBufferCount= */ 0, /* droppedDecoderBufferCount= */ framesElapsed - 1);
+      }
+    }
+
+    lastRenderedTunneledBufferPresentationTimeUs = presentationTimeUs;
   }
 
   /** Called when a output EOS was received in tunneling mode. */
