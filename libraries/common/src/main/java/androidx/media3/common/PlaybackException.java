@@ -91,11 +91,12 @@ public class PlaybackException extends Exception {
         ERROR_CODE_DECODING_FAILED,
         ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
         ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
-        ERROR_CODE_AUDIO_TRACK_INCONSISTENT_SAMPLE_RATE,
+        ERROR_CODE_AUDIO_TRACK_INCONSISTENT_SAMPLE_RATE, // MIREGO
         ERROR_CODE_AUDIO_TRACK_INIT_FAILED,
         ERROR_CODE_AUDIO_TRACK_WRITE_FAILED,
         ERROR_CODE_AUDIO_TRACK_OFFLOAD_INIT_FAILED,
         ERROR_CODE_AUDIO_TRACK_OFFLOAD_WRITE_FAILED,
+        ERROR_CODE_AUDIO_VIDEO_DESYNC, // MIREGO
         ERROR_CODE_DRM_UNSPECIFIED,
         ERROR_CODE_DRM_SCHEME_UNSUPPORTED,
         ERROR_CODE_DRM_PROVISIONING_FAILED,
@@ -293,6 +294,9 @@ public class PlaybackException extends Exception {
 
   /** MIREGO: Caused by an inconsistent sample rate between the container and the track atom (recoverable). */
   public static final int ERROR_CODE_AUDIO_TRACK_INCONSISTENT_SAMPLE_RATE = 5901;
+
+  /** MIREGO: Caused by the audio and video being out of sync */
+  public static final int ERROR_CODE_AUDIO_VIDEO_DESYNC = 5902;
 
   // DRM errors (6xxx).
 
