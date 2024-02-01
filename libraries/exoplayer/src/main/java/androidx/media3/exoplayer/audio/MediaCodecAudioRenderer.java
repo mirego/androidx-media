@@ -761,6 +761,10 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
     // buffer is skipped, dropped, or written.
     nextBufferToWritePresentationTimeUs = C.TIME_UNSET;
 
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "processOutputBuffer (decryptOnlyCodecFormat %s  bufferFlags: %d isDecodeOnlyBuffer %s)",
+        decryptOnlyCodecFormat, bufferFlags, isDecodeOnlyBuffer);
+
     if (decryptOnlyCodecFormat != null
         && (bufferFlags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
       // Discard output buffers from the passthrough (raw) decoder containing codec specific data.
@@ -1009,8 +1013,6 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
               : max(currentPositionUs, newCurrentPositionUs);
       allowPositionDiscontinuity = false;
     }
-    // MIREGO
-    Log.v(Log.LOG_LEVEL_VERBOSE4, TAG,"updateCurrentPosition %dus (new: %dus)", currentPositionUs, newCurrentPositionUs);
   }
 
   /**
