@@ -22,6 +22,8 @@ import android.media.AudioTrack;
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
 import androidx.media3.common.C;
+import androidx.media3.common.util.Log;
+import androidx.media3.common.util.Util;
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -84,6 +86,8 @@ import java.lang.annotation.Target;
 
   /** The polling interval for {@link #STATE_ERROR}. */
   private static final int ERROR_POLL_INTERVAL_US = 500_000;
+
+  private static final String TAG = "AudioTimeStampPoller"; /* MIREGO */
 
   /**
    * The minimum duration to remain in {@link #STATE_INITIALIZING} if no timestamps are being
@@ -311,6 +315,10 @@ import java.lang.annotation.Target;
     public boolean maybeUpdateTimestamp() {
       boolean updated = audioTrack.getTimestamp(audioTimestamp);
       if (updated) {
+
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE2, TAG,"maybeUpdateTimestamp updated pos: %d  last: %d", audioTimestamp.framePosition, lastTimestampRawPositionFrames);
+
         long rawPositionFrames = audioTimestamp.framePosition;
         if (lastTimestampRawPositionFrames > rawPositionFrames) {
           if (expectTimestampFramePositionReset) {

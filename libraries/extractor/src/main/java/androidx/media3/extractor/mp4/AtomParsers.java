@@ -1889,6 +1889,11 @@ import java.util.Objects;
 
       out.format = formatBuilder.build();
     }
+
+    // MIREGO
+    if (out.format != null) {
+      Log.v(Log.LOG_LEVEL_VERBOSE2, "AtomParsers", "%s", out.format);
+    }
   }
 
   /**
