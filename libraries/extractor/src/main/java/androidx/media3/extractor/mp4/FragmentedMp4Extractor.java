@@ -716,6 +716,10 @@ public class FragmentedMp4Extractor implements Extractor {
         Track track = sampleTable.track;
         TrackOutput output = extractorOutput.track(i, track.type);
         output.durationUs(track.durationUs);
+
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE2, TAG,"creating track bundles %d format: %s duration: %dus timescale: %d ", i, track.format, track.durationUs, track.timescale);
+
         TrackBundle trackBundle =
             new TrackBundle(
                 output,

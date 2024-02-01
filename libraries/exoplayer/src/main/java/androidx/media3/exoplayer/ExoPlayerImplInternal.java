@@ -1331,6 +1331,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
         // reading ahead into the next stream or is waiting for the next stream. This is to avoid
         // getting stuck if tracks in the current period have uneven durations and are still being
         // read by another renderer. See: https://github.com/google/ExoPlayer/issues/1874.
+
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE4, TAG,"renderer.render %s pos %d us  elapsed realtime: %d us", renderer, rendererPositionUs, rendererPositionElapsedRealtimeUs);
+
         renderersEnded = renderersEnded && renderer.isEnded();
         boolean allowsPlayback = renderer.allowsPlayback(playingPeriodHolder);
         maybeTriggerOnRendererReadyChanged(/* rendererIndex= */ i, allowsPlayback);
