@@ -279,6 +279,9 @@ import java.lang.reflect.Method;
       maybeTriggerOnPositionAdvancingCallback(positionUs);
     }
 
+    //Mirego
+    Log.v(Log.LOG_LEVEL_VERBOSE4, TAG, "getCurrentPositionUs: %d (useGetTimestampMode: %s)", positionUs, useGetTimestampMode);
+
     return positionUs;
   }
 
@@ -389,7 +392,7 @@ import java.lang.reflect.Method;
         smoothedPlayheadOffsetUs += playheadOffsets[i] / playheadOffsetCount;
       }
       // MIREGO
-      Log.v(Log.LOG_LEVEL_VERBOSE2, TAG,"maybeSampleSyncParams offset: %dus smoothed: %d ", playbackPositionUs - systemTimeUs, smoothedPlayheadOffsetUs);
+      Log.v(Log.LOG_LEVEL_VERBOSE4, TAG,"maybeSampleSyncParams offset: %d us smoothed: %d us", playbackPositionUs - systemTimeUs, smoothedPlayheadOffsetUs);
     }
 
     boolean latencyUpdated = maybeUpdateLatency(systemTimeUs);
