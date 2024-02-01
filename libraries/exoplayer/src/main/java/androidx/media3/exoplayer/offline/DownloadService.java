@@ -191,7 +191,8 @@ public abstract class DownloadService extends Service {
   private static final HashMap<Class<? extends DownloadService>, DownloadManagerHelper>
       downloadManagerHelpers = new HashMap<>();
 
-  @Nullable private final ForegroundNotificationUpdater foregroundNotificationUpdater;
+  // MIREGO protected to allow us to stop the notifications when service is idle but not stopped
+  @Nullable protected final ForegroundNotificationUpdater foregroundNotificationUpdater;
   @Nullable private final String channelId;
   @StringRes private final int channelNameResourceId;
   @StringRes private final int channelDescriptionResourceId;
@@ -876,7 +877,8 @@ public abstract class DownloadService extends Service {
     }
   }
 
-  private final class ForegroundNotificationUpdater {
+  // MIREGO public to allow us to stop the notifications when service is idle but not stopped
+  public final class ForegroundNotificationUpdater {
 
     private final int notificationId;
     private final long updateInterval;
@@ -891,12 +893,14 @@ public abstract class DownloadService extends Service {
       this.handler = new Handler(Looper.getMainLooper());
     }
 
-    public void startPeriodicUpdates() {
+    // MIREGO add synchronized to avoid a notification getting displayed after stopPeriodicUpdates
+    public synchronized void startPeriodicUpdates() {
       periodicUpdatesStarted = true;
       update();
     }
 
-    public void stopPeriodicUpdates() {
+    // MIREGO add synchronized to avoid a notification getting displayed after stopPeriodicUpdates
+    public synchronized void stopPeriodicUpdates() {
       periodicUpdatesStarted = false;
       handler.removeCallbacksAndMessages(null);
     }
@@ -914,7 +918,13 @@ public abstract class DownloadService extends Service {
     }
 
     @SuppressLint("InlinedApi") // Using compile time constant FOREGROUND_SERVICE_TYPE_DATA_SYNC
-    private void update() {
+    // MIREGO add synchronized to avoid a notification getting displayed after stopPeriodicUpdates
+    private synchronized void update() {
+      // MIREGO added block
+      if (!periodicUpdatesStarted) {
+        return;
+      }
+
       DownloadManager downloadManager =
           Assertions.checkNotNull(downloadManagerHelper).downloadManager;
       List<Download> downloads = downloadManager.getCurrentDownloads();
