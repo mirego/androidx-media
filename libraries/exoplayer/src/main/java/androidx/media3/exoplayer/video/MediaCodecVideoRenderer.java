@@ -1197,6 +1197,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
     lastRenderedTunneledBufferPresentationTimeUs = 0;
     hasNotifiedAvDesyncError = false;
     hasNotifiedAvDesyncSkippedFramesError = false;
+    lastRender = 0;
   }
 
   @Override
