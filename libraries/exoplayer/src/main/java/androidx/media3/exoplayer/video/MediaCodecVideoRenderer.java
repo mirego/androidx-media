@@ -1282,6 +1282,15 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
     }
   }
 
+  // MIREGO added block
+  int skipCount = 0;
+  long lastRender = 0;
+  long elapsedRealtimeNowUsPrev = 0;
+  long elapsedRealtimeUsPrev = 0;
+  long cumulDelta = 0;
+  long positionUsPrev = 0;
+  long bufferPresentationTimeUsPrev = 0;
+
   @Override
   protected boolean processOutputBuffer(
       long positionUs,
@@ -1314,10 +1323,38 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
 
     if (isDecodeOnlyBuffer && !isLastBuffer) {
       skipOutputBuffer(codec, bufferIndex, presentationTimeUs);
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE4, TAG,"skipOutputBuffer");
+
       return true;
     }
 
     boolean isStarted = getState() == STATE_STARTED;
+
+    // MIREGO BEGIN
+    long elapsedRealtimeNowUs = SystemClock.elapsedRealtime() * 1000;
+
+    if (getPlaybackSpeed() != 1.0) {
+      Log.v(Log.LOG_LEVEL_VERBOSE4, TAG,"playbackSpeed: %f", getPlaybackSpeed());
+    }
+
+    if (positionUsPrev != 0) {
+      long positionUsDelta = positionUs - positionUsPrev;
+      long bufferPresentationTimeUsDelta = bufferPresentationTimeUs - bufferPresentationTimeUsPrev;
+      Log.v(Log.LOG_LEVEL_VERBOSE4, TAG,"processOutputBuffer positionDelta %dus bufferPresentationTimeUsDelta %dus", positionUsDelta, bufferPresentationTimeUsDelta);
+    }
+    positionUsPrev = positionUs;
+    bufferPresentationTimeUsPrev = bufferPresentationTimeUs;
+
+    long elapsedRealtimeNowUsDelta = elapsedRealtimeNowUs - elapsedRealtimeNowUsPrev;
+    long elapsedRealtimeUsDelta = elapsedRealtimeUs - elapsedRealtimeUsPrev;
+    cumulDelta += elapsedRealtimeNowUs - elapsedRealtimeUs;
+    Log.v(Log.LOG_LEVEL_VERBOSE4, TAG,"processOutputBuffer elapsedRealtimeNowUsDelta %dus elapsedRealtimeUsDelta %dus", elapsedRealtimeNowUsDelta, elapsedRealtimeUsDelta);
+    elapsedRealtimeNowUsPrev = elapsedRealtimeNowUs;
+    elapsedRealtimeUsPrev = elapsedRealtimeUs;
+    // MIREGO END
+
     long earlyUs =
         calculateEarlyTimeUs(
             positionUs,
@@ -1328,6 +1365,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
             getClock());
 
     if (displaySurface == placeholderSurface) {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE4, TAG,"processOutputBuffer displaySurface == placeholderSurface");
+
       // Skip frames in sync with playback, so we'll be at the right frame if the mode changes.
       if (isBufferLate(earlyUs)) {
         skipOutputBuffer(codec, bufferIndex, presentationTimeUs);
@@ -1350,6 +1390,10 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
     boolean forceRenderOutputBuffer = shouldForceRender(positionUs, earlyUs);
     if (forceRenderOutputBuffer) {
       long releaseTimeNs = getClock().nanoTime();
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE3, TAG,"processOutputBuffer forceRenderOutputBuffer earlyUs: %d releaseTimeNs: %d", earlyUs, releaseTimeNs);
+
       notifyFrameMetadataListener(presentationTimeUs, releaseTimeNs, format);
       renderOutputBuffer(codec, bufferIndex, presentationTimeUs, releaseTimeNs);
       updateVideoFrameProcessingOffsetCounters(earlyUs);
@@ -1369,15 +1413,37 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
     boolean treatDroppedBuffersAsSkipped = joiningDeadlineMs != C.TIME_UNSET;
     if (shouldDropBuffersToKeyframe(earlyUs, elapsedRealtimeUs, isLastBuffer)
         && maybeDropBuffersToKeyframe(positionUs, treatDroppedBuffersAsSkipped)) {
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE3, TAG,"processOutputBuffer shouldDropBuffersToKeyframe");
+
       return false;
     } else if (shouldDropOutputBuffer(earlyUs, elapsedRealtimeUs, isLastBuffer)) {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE3, TAG,"processOutputBuffer shouldDropOutputBuffer");
+
       if (treatDroppedBuffersAsSkipped) {
         skipOutputBuffer(codec, bufferIndex, presentationTimeUs);
       } else {
         dropOutputBuffer(codec, bufferIndex, presentationTimeUs);
       }
       updateVideoFrameProcessingOffsetCounters(earlyUs);
+
+      // MIREGO BEGIN
+      skipCount = 0;
+      lastRender = systemTimeNs / 1000;
+      Log.v(Log.LOG_LEVEL_VERBOSE4, TAG,"processOutputBuffer earlyUs %d", earlyUs);
+      // MIREGO END
+
       return true;
+    } else { // MIREGO ADDED else block
+      skipCount++;
+      long systemTimeUs = systemTimeNs / 1000;
+      if ((systemTimeUs - lastRender) > 50000) {
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG,
+            "processOutputBuffer skip render for %dms (count: %d) earlyUs: %d",
+            (systemTimeUs - lastRender) / 1000, skipCount, earlyUs);
+      }
     }
 
     if (Util.SDK_INT >= 21) {
@@ -1399,6 +1465,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
         return true;
       }
     } else {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE4, TAG,"processOutputBuffer earlyUs adjust: %d", earlyUs);
+
       // We need to time the release ourselves.
       if (earlyUs < 30000) {
         if (earlyUs > 11000) {
@@ -1467,6 +1536,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
       boolean isStarted,
       float playbackSpeed,
       Clock clock) {
+
     // Calculate how early we are. In other words, the realtime duration that needs to elapse whilst
     // the renderer is started before the frame should be rendered. A negative value means that
     // we're already late.
