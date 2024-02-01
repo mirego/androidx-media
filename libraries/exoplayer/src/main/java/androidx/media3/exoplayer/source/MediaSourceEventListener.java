@@ -264,9 +264,6 @@ public interface MediaSourceEventListener {
 
     /** Dispatches {@link #onLoadStarted(int, MediaPeriodId, LoadEventInfo, MediaLoadData)}. */
     public void loadStarted(LoadEventInfo loadEventInfo, MediaLoadData mediaLoadData) {
-      // MIREGO
-      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG,"loadStarted (type: %d): startTime: %d endTime: %d duration: %d  (%s)", mediaLoadData.dataType, mediaLoadData.mediaStartTimeMs, mediaLoadData.mediaEndTimeMs, mediaLoadData.mediaEndTimeMs - mediaLoadData.mediaStartTimeMs, loadEventInfo.uri);
-
       dispatchEvent(
           (listener) ->
               listener.onLoadStarted(windowIndex, mediaPeriodId, loadEventInfo, mediaLoadData));
