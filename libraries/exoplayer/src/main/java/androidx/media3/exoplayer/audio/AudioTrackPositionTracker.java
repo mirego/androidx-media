@@ -31,6 +31,7 @@ import android.media.AudioTrack;
 import androidx.annotation.Nullable;
 import androidx.media3.common.C;
 import androidx.media3.common.util.Clock;
+import androidx.media3.common.util.Log;
 import androidx.media3.common.util.Util;
 import java.lang.reflect.Method;
 
@@ -122,6 +123,8 @@ import java.lang.reflect.Method;
   private static final int MAX_PLAYHEAD_OFFSET_COUNT = 10;
   private static final int MIN_PLAYHEAD_OFFSET_SAMPLE_INTERVAL_US = 30_000;
   private static final int MIN_LATENCY_SAMPLE_INTERVAL_US = 50_0000;
+
+  private static final String TAG = "AudioTrackPosTracker"; /* MIREGO */
 
   private final Listener listener;
   private final Clock clock;
@@ -385,6 +388,8 @@ import java.lang.reflect.Method;
       for (int i = 0; i < playheadOffsetCount; i++) {
         smoothedPlayheadOffsetUs += playheadOffsets[i] / playheadOffsetCount;
       }
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE2, TAG,"maybeSampleSyncParams offset: %dus smoothed: %d ", playbackPositionUs - systemTimeUs, smoothedPlayheadOffsetUs);
     }
 
     boolean latencyUpdated = maybeUpdateLatency(systemTimeUs);

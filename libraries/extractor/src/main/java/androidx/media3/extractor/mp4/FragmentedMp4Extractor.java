@@ -815,6 +815,10 @@ public class FragmentedMp4Extractor implements Extractor {
             track.format.metadata,
             udtaMetadata,
             mvhdMetadata);
+
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE2, TAG,"creating track bundles %d format: %s duration: %dus timescale: %d ", i, track.format, track.durationUs, track.timescale);
+
         TrackBundle trackBundle =
             new TrackBundle(
                 output,
