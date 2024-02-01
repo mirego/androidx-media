@@ -994,7 +994,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
       long periodPositionUs = playingPeriodHolder.toPeriodTime(rendererPositionUs);
 
       // MIREGO
-      Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "updatePlaybackPositions rendererPositionUs: %d  (periodPositionUs: %d)", rendererPositionUs, periodPositionUs);
+      Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "updatePlaybackPositions rendererPositionUs: %d  (periodPositionUs: %d)", rendererPositionUs, periodPositionUs);
 
       maybeTriggerPendingMessages(playbackInfo.positionUs, periodPositionUs);
       playbackInfo.updatePositionUs(periodPositionUs);
@@ -2175,7 +2175,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
     if (!hasReadingPeriodFinishedReading()) {
       // MIREGO
-      Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "maybeUpdateReadingPeriod not finished reading. Period durationUs: %d  rendererOffset: %d",
+      Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "maybeUpdateReadingPeriod not finished reading. Period durationUs: %d  rendererOffset: %d",
           readingPeriodHolder.info.durationUs, readingPeriodHolder.getRendererOffset());
       return;
     }
