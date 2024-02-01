@@ -996,6 +996,8 @@ import java.util.concurrent.TimeoutException;
       this.foregroundMode = foregroundMode;
       if (!internalPlayer.setForegroundMode(foregroundMode)) {
         // One of the renderers timed out releasing its resources.
+        // MIREGO
+        Log.e(TAG, String.format("setForegroundMode(%s), ERROR_CODE_TIMEOUT", foregroundMode));
         stopInternal(
             ExoPlaybackException.createForUnexpected(
                 new ExoTimeoutException(ExoTimeoutException.TIMEOUT_OPERATION_SET_FOREGROUND_MODE),
@@ -1039,6 +1041,8 @@ import java.util.concurrent.TimeoutException;
     audioFocusManager.release();
     if (!internalPlayer.release()) {
       // One of the renderers timed out releasing its resources.
+      // MIREGO
+      Log.e(TAG, "release(), ERROR_CODE_TIMEOUT");
       listeners.sendEvent(
           Player.EVENT_PLAYER_ERROR,
           listener ->
@@ -2691,6 +2695,10 @@ import java.util.concurrent.TimeoutException;
     }
     this.videoOutput = videoOutput;
     if (messageDeliveryTimedOut) {
+      // MIREGO
+      Log.e(TAG,
+          String.format("setVideoOutputInternal() detachSurfaceTimeoutMs: %s, ERROR_CODE_TIMEOUT",
+              detachSurfaceTimeoutMs));
       stopInternal(
           ExoPlaybackException.createForUnexpected(
               new ExoTimeoutException(ExoTimeoutException.TIMEOUT_OPERATION_DETACH_SURFACE),
