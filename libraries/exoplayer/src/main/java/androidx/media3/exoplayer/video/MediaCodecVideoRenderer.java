@@ -1175,6 +1175,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
     return videoFrameReleaseControl.isReady(rendererOtherwiseReady);
   }
 
+  boolean hasNotifiedAvDesyncError = false;  // MIREGO
+  boolean hasNotifiedAvDesyncSkippedFramesError = false;  // MIREGO
+
   @Override
   protected void onStarted() {
     super.onStarted();
@@ -1192,6 +1195,8 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
     // MIREGO added following block
     firstFrameRenderedSystemMs = 0;
     lastRenderedTunneledBufferPresentationTimeUs = 0;
+    hasNotifiedAvDesyncError = false;
+    hasNotifiedAvDesyncSkippedFramesError = false;
   }
 
   @Override
