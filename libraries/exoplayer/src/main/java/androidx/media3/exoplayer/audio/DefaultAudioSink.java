@@ -1728,14 +1728,15 @@ public final class DefaultAudioSink implements AudioSink {
             : DEFAULT_SKIP_SILENCE;
 
     // MIREGO
-    Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "mediaPositionParametersCheckpoints.add mediaTimeUs: %d  framesToDurationUs: %d",
-        max(0, presentationTimeUs), configuration.framesToDurationUs(getWrittenFrames()));
+    long audioTrackPositionUs = configuration.framesToDurationUs(getWrittenFrames());
+    Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "mediaPositionParametersCheckpoints.add mediaTimeUs: %d  framesToDurationUs: %d  writtenFrames: %d  configRate: %d",
+        max(0, presentationTimeUs), audioTrackPositionUs, writtenEncodedFrames, configuration.outputSampleRate);
 
     mediaPositionParametersCheckpoints.add(
         new MediaPositionParameters(
             audioProcessorPlaybackParameters,
             /* mediaTimeUs= */ max(0, presentationTimeUs),
-            /* audioTrackPositionUs= */ configuration.framesToDurationUs(getWrittenFrames())));
+            /* audioTrackPositionUs= */ audioTrackPositionUs));
     setupAudioProcessors();
     if (listener != null) {
       listener.onSkipSilenceEnabledChanged(skipSilenceEnabled);
@@ -1784,6 +1785,11 @@ public final class DefaultAudioSink implements AudioSink {
         && positionUs >= mediaPositionParametersCheckpoints.getFirst().audioTrackPositionUs) {
       // We are playing (or about to play) media with the new parameters, so update them.
       mediaPositionParameters = mediaPositionParametersCheckpoints.remove();
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "applyMediaPositionParameters switch mediaTimeUs: %d audioTrackPositionUs: %d  params: %f %f", mediaPositionParameters.mediaTimeUs,
+          mediaPositionParameters.audioTrackPositionUs, mediaPositionParameters.playbackParameters.speed,
+          mediaPositionParameters.playbackParameters.pitch);
     }
 
     long playoutDurationSinceLastCheckpointUs =
@@ -1808,6 +1814,12 @@ public final class DefaultAudioSink implements AudioSink {
           mediaPositionParametersCheckpoints.getFirst();
       long playoutDurationUntilNextCheckpointUs =
           nextMediaPositionParameters.audioTrackPositionUs - positionUs;
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "configured with new parameters mediaTimeUs: %d audioTrackPositionUs: %d  params: %f %f",
+          nextMediaPositionParameters.mediaTimeUs,  nextMediaPositionParameters.audioTrackPositionUs,
+          nextMediaPositionParameters.playbackParameters.speed, nextMediaPositionParameters.playbackParameters.pitch);
+
       long mediaDurationUntilNextCheckpointUs =
           Util.getMediaDurationForPlayoutDuration(
               playoutDurationUntilNextCheckpointUs,

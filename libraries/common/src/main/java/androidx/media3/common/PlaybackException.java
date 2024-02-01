@@ -91,6 +91,7 @@ public class PlaybackException extends Exception {
         ERROR_CODE_DECODING_FAILED,
         ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
         ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
+        ERROR_CODE_AUDIO_TRACK_INCONSISTENT_SAMPLE_RATE,
         ERROR_CODE_AUDIO_TRACK_INIT_FAILED,
         ERROR_CODE_AUDIO_TRACK_WRITE_FAILED,
         ERROR_CODE_AUDIO_TRACK_OFFLOAD_INIT_FAILED,
@@ -289,6 +290,9 @@ public class PlaybackException extends Exception {
 
   /** Caused by an AudioTrack init operation failure in offload mode. */
   public static final int ERROR_CODE_AUDIO_TRACK_OFFLOAD_INIT_FAILED = 5004;
+
+  /** MIREGO: Caused by an inconsistent sample rate between the container and the track atom (recoverable). */
+  public static final int ERROR_CODE_AUDIO_TRACK_INCONSISTENT_SAMPLE_RATE = 5901;
 
   // DRM errors (6xxx).
 
