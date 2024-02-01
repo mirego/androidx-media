@@ -888,7 +888,7 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
       maybeInitCodecOrBypass();
 
       // MIREGO
-      Log.v(Log.LOG_LEVEL_VERBOSE4, TAG,"render %s bypassEnabled: %s codec: %s", this, bypassEnabled, codec);
+      Log.v(Log.LOG_LEVEL_VERBOSE3, TAG,"render positionUs %d bypassEnabled: %s codec: %s", positionUs, bypassEnabled, codec);
 
       if (bypassEnabled) {
         TraceUtil.beginSection("bypassRender");
@@ -1539,6 +1539,9 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
       checkNotNull(codec)
           .queueSecureInputBuffer(
               inputIndex, /* offset= */ 0, buffer.cryptoInfo, presentationTimeUs, flags);
+
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "feedInputBuffer queued encrypted inputBuffer presTime: %d", presentationTimeUs);
     } else {
       checkNotNull(codec)
           .queueInputBuffer(
@@ -1547,6 +1550,9 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
               checkNotNull(buffer.data).limit(),
               presentationTimeUs,
               flags);
+
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "feedInputBuffer queued inputBuffer presTime: %d", presentationTimeUs);
     }
 
     resetInputBuffer();
@@ -2050,12 +2056,9 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
       throws ExoPlaybackException {
     MediaCodecAdapter codec = checkNotNull(this.codec);
 
-    // MIREGO
-    Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "drainOutputBuffer(type:%d) positionUs %d", getTrackType(), positionUs);
-
     if (!hasOutputBuffer()) {
       // MIREGO
-      Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "drainOutputBuffer(type:%d) !hasOutputBuffer codec: %s", getTrackType(), codec);
+      Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "drainOutputBuffer(type:%d) !hasOutputBuffer codec: %s", getTrackType(), codec);
 
       int outputIndex;
       if (codecNeedsEosOutputExceptionWorkaround && codecReceivedEos) {
@@ -2142,6 +2145,9 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
           lastBufferInStreamPresentationTimeUs != C.TIME_UNSET
               && lastBufferInStreamPresentationTimeUs <= outputBufferInfo.presentationTimeUs;
       updateOutputFormatForTime(outputBufferInfo.presentationTimeUs);
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "drainOutputBuffer dequeued outputBuffer presTime: %d", outputBufferInfo.presentationTimeUs);
     }
 
     boolean processedOutputBuffer;
@@ -2185,8 +2191,8 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
     }
 
     // MIREGO
-    Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "drainOutputBuffer(type:%d) processedOutputBuffer position: %d",
-        getTrackType(), positionUs);
+    Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "drainOutputBuffer(type:%d) processedOutputBuffer %s position: %d",
+        getTrackType(), processedOutputBuffer, positionUs);
 
     if (processedOutputBuffer) {
       onProcessedOutputBuffer(outputBufferInfo.presentationTimeUs);
