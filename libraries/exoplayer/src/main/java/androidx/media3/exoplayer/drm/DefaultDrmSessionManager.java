@@ -847,6 +847,9 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
 
     @Override
     public void onProvisionError(Exception error, boolean thrownByExoMediaDrm) {
+      // MIREGO
+      callback.onProvisionError(error);
+
       provisioningSession = null;
       ImmutableList<DefaultDrmSession> sessionsToNotify =
           ImmutableList.copyOf(sessionsAwaitingProvisioning);
