@@ -25,6 +25,7 @@ import androidx.media3.common.C;
 import androidx.media3.common.MediaLibraryInfo;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.util.Assertions;
+import androidx.media3.common.util.Log;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.common.util.Util;
 import androidx.media3.datasource.BaseDataSource;
@@ -67,6 +68,9 @@ import okhttp3.ResponseBody;
  */
 public class OkHttpDataSource extends BaseDataSource implements HttpDataSource {
 
+  // MIREGO: Add tag for logs
+  private static final String TAG = "OkHttpDataSource";
+
   static {
     MediaLibraryInfo.registerModule("media3.datasource.okhttp");
   }
@@ -76,6 +80,8 @@ public class OkHttpDataSource extends BaseDataSource implements HttpDataSource {
 
     private final RequestProperties defaultRequestProperties;
     private final Call.Factory callFactory;
+
+
 
     @Nullable private String userAgent;
     @Nullable private TransferListener transferListener;
@@ -269,8 +275,12 @@ public class OkHttpDataSource extends BaseDataSource implements HttpDataSource {
       responseBody = Assertions.checkNotNull(response.body());
       responseByteStream = responseBody.byteStream();
     } catch (IOException e) {
-      throw HttpDataSourceException.createForIOException(
+      // MIREGO START
+      HttpDataSourceException ioException = HttpDataSourceException.createForIOException(
           e, dataSpec, HttpDataSourceException.TYPE_OPEN);
+      Log.e(TAG, "open() ", ioException);
+      throw ioException;
+      // MIREGO END
     }
 
     int responseCode = response.code();
@@ -344,8 +354,12 @@ public class OkHttpDataSource extends BaseDataSource implements HttpDataSource {
     try {
       return readInternal(buffer, offset, length);
     } catch (IOException e) {
-      throw HttpDataSourceException.createForIOException(
+      // MIREGO START
+      HttpDataSourceException ioException = HttpDataSourceException.createForIOException(
           e, castNonNull(dataSpec), HttpDataSourceException.TYPE_READ);
+      Log.e(TAG, "read() ", ioException);
+      throw ioException;
+      // MIREGO END
     }
   }
 
