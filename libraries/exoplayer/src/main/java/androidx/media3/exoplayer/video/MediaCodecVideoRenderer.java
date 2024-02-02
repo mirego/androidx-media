@@ -652,6 +652,10 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
     super.onEnabled(joining, mayRenderStartOfStream);
     boolean tunneling = getConfiguration().tunneling;
     checkState(!tunneling || tunnelingAudioSessionId != C.AUDIO_SESSION_ID_UNSET);
+
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "onEnabled tunneling: %s", tunneling);
+
     if (this.tunneling != tunneling) {
       this.tunneling = tunneling;
       releaseCodec();
@@ -812,7 +816,8 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
         videoSinkProvider.setVideoFrameMetadataListener(frameMetadataListener);
         break;
       case MSG_SET_AUDIO_SESSION_ID:
-        int tunnelingAudioSessionId = (int) checkNotNull(message);
+        // MIREGO: use 2 audio session ids
+        int tunnelingAudioSessionId = ((AudioSessionIdMessageData) message).tunnelingSessionId;
         if (this.tunnelingAudioSessionId != tunnelingAudioSessionId) {
           this.tunnelingAudioSessionId = tunnelingAudioSessionId;
           if (tunneling) {
