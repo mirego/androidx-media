@@ -54,6 +54,7 @@ import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.FormatHolder;
 import androidx.media3.exoplayer.MediaClock;
 import androidx.media3.exoplayer.PlayerMessage.Target;
+import androidx.media3.exoplayer.Renderer;
 import androidx.media3.exoplayer.RendererCapabilities;
 import androidx.media3.exoplayer.audio.AudioRendererEventListener.EventDispatcher;
 import androidx.media3.exoplayer.audio.AudioSink.InitializationException;
@@ -686,6 +687,8 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
   @Override
   protected void onReset() {
     hasPendingReportedSkippedSilence = false;
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "onReset audioSinkNeedsReset: %s", audioSinkNeedsReset);
     try {
       super.onReset();
     } finally {
@@ -869,7 +872,10 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
         audioSink.setSkipSilenceEnabled((Boolean) checkNotNull(message));
         break;
       case MSG_SET_AUDIO_SESSION_ID:
-        audioSink.setAudioSessionId((Integer) checkNotNull(message));
+        // MIREGO START: use 2 audio session ids
+        Renderer.AudioSessionIdMessageData msgData = (Renderer.AudioSessionIdMessageData) message;
+        audioSink.setAudioSessionId(msgData.standardSessionId, msgData.tunnelingSessionId);
+        // MIREGO END
         break;
       case MSG_SET_PRIORITY:
         rendererPriority = (int) checkNotNull(message);

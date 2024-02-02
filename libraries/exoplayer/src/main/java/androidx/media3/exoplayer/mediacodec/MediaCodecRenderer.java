@@ -804,6 +804,9 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
 
   @Override
   protected void onReset() {
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "onReset() this: %s", this);
+
     try {
       disableBypass();
       releaseCodec();
@@ -973,7 +976,7 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
     }
 
     // MIREGO
-    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "flushOrReleaseCodec codecDrainAction: %d", codecDrainAction);
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "flushOrReleaseCodec codecDrainAction: %d %s", codecDrainAction, this);
 
     if (codecDrainAction == DRAIN_ACTION_REINITIALIZE
         || codecNeedsFlushWorkaround
@@ -995,6 +998,10 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
         }
       }
     }
+
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "flushOrReleaseCodec flush %s", this);
+
     flushCodec();
     return false;
   }

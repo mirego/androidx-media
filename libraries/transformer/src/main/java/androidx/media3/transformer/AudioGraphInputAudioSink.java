@@ -264,7 +264,7 @@ import java.util.Objects;
   }
 
   @Override
-  public void setAudioSessionId(int audioSessionId) {}
+  public void setAudioSessionId(int audioSessionId, int tunnelingSessionId) {}
 
   @Override
   public void setAuxEffectInfo(AuxEffectInfo auxEffectInfo) {}
