@@ -261,10 +261,16 @@ public final class MediaCodecInfo {
    */
   public boolean isFormatSupported(Format format) throws MediaCodecUtil.DecoderQueryException {
     if (!isSampleMimeTypeSupported(format)) {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "%s doesn't support format %s sample mime type", name, format);
+
       return false;
     }
 
     if (!isCodecProfileAndLevelSupported(format, /* checkPerformanceCapabilities= */ true)) {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "%s doesn't support format %s (profile and level)", name, format);
+
       return false;
     }
 
@@ -276,7 +282,13 @@ public final class MediaCodecInfo {
       if (format.width <= 0 || format.height <= 0) {
         return true;
       }
-      return isVideoSizeAndRateSupportedV21(format.width, format.height, format.frameRate);
+      // MIREGO START
+      if (!isVideoSizeAndRateSupportedV21(format.width, format.height, format.frameRate)) {
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "%s doesn't support format %s (size and rate)", name, format);
+        return false;
+      }
+      return true;
+      // MIREGO END
     } else { // Audio
       return (format.sampleRate == Format.NO_VALUE
               || isAudioSampleRateSupportedV21(format.sampleRate))
@@ -538,6 +550,10 @@ public final class MediaCodecInfo {
         return true;
       } else if (evaluation == COVERAGE_RESULT_NO) {
         logNoSupport("sizeAndRate.cover, " + width + "x" + height + "@" + frameRate);
+
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "%s doesn't support video %d x %d at %f (COVERAGE_RESULT_NO)", name, width, height, frameRate);
+
         return false;
       }
       // If COVERAGE_RESULT_NO_PERFORMANCE_POINTS_UNSUPPORTED then logic falls through
@@ -545,6 +561,9 @@ public final class MediaCodecInfo {
     }
 
     if (!areSizeAndRateSupported(videoCapabilities, width, height, frameRate)) {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "%s doesn't support video %d x %d at %f (areSizeAndRateSupported false)", name, width, height, frameRate);
+
       if (width >= height
           || !needsRotatedVerticalResolutionWorkaround(name)
           || !areSizeAndRateSupported(videoCapabilities, height, width, frameRate)) {
