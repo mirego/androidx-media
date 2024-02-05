@@ -3111,6 +3111,12 @@ import java.util.concurrent.TimeoutException;
       analyticsCollector.onDroppedFrames(count, elapsed);
     }
 
+    //MIREGO added
+    @Override
+    public void onQueuedFrames(int count, long elapsed) {
+      analyticsCollector.onQueuedFrames(count, elapsed);
+    }
+
     @Override
     public void onVideoSizeChanged(VideoSize newVideoSize) {
       videoSize = newVideoSize;
