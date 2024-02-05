@@ -1719,6 +1719,8 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
     }
   }
 
+  private long lastLogProcessOutputBufferMs = 0; // MIREGO
+
   @Override
   protected boolean processOutputBuffer(
       long positionUs,
