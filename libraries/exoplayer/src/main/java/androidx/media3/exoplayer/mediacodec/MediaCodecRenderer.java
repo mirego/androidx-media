@@ -1412,7 +1412,8 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
   }
 
   /** Configures rendering where no codec is used. */
-  private void initBypass(Format format) {
+  // MIREGO: made protected
+  protected void initBypass(Format format) {
     // MIREGO
     Log.v(Log.LOG_LEVEL_VERBOSE1, TAG,"initBypass format: %s (%s)", format, this);
 
@@ -1442,6 +1443,10 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
       codecOperatingRate = CODEC_OPERATING_RATE_UNSET;
     }
     codecInitializingTimestamp = getClock().elapsedRealtime();
+
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "initCodec format: %s", inputFormat);
+
     MediaCodecAdapter.Configuration configuration =
         getMediaCodecConfiguration(codecInfo, inputFormat, crypto, codecOperatingRate);
     if (SDK_INT >= 31) {
@@ -1887,6 +1892,9 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
     inputFormat = newFormat;
 
     if (bypassEnabled) {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "Bypass enabled - Drain and reinitialize");
+
       bypassDrainAndReinitialize = true;
       return null; // Need to drain batch buffer first.
     }
@@ -1908,6 +1916,9 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
 
     Format oldFormat = checkNotNull(codecInputFormat);
     if (drmNeedsCodecReinitialization(codecInfo, newFormat, codecDrmSession, sourceDrmSession)) {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "onInputFormatChanged drmNeedsCodecReinitialization");
+
       drainAndReinitializeCodec();
       return new DecoderReuseEvaluation(
           codecInfo.name,
@@ -1922,9 +1933,15 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
     @DecoderDiscardReasons int overridingDiscardReasons = 0;
     switch (evaluation.result) {
       case REUSE_RESULT_NO:
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG,"onInputFormatChanged do not reuse codec");
+
         drainAndReinitializeCodec();
         break;
       case REUSE_RESULT_YES_WITH_FLUSH:
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG,"onInputFormatChanged flush codec");
+
         if (!updateCodecOperatingRate(newFormat)) {
           overridingDiscardReasons |= DISCARD_REASON_OPERATING_RATE_CHANGED;
         } else {
@@ -1939,6 +1956,9 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
         }
         break;
       case REUSE_RESULT_YES_WITH_RECONFIGURATION:
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG,"onInputFormatChanged reconfigure codec");
+
         if (!updateCodecOperatingRate(newFormat)) {
           overridingDiscardReasons |= DISCARD_REASON_OPERATING_RATE_CHANGED;
         } else {
@@ -1956,6 +1976,9 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
         }
         break;
       case REUSE_RESULT_YES_WITHOUT_RECONFIGURATION:
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG,"onInputFormatChanged reuse codec");
+
         if (!updateCodecOperatingRate(newFormat)) {
           overridingDiscardReasons |= DISCARD_REASON_OPERATING_RATE_CHANGED;
         } else {
@@ -2293,7 +2316,13 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
    * @throws ExoPlaybackException If an error occurs re-initializing a codec.
    */
   private void drainAndReinitializeCodec() throws ExoPlaybackException {
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "drainAndReinitializeCodec");
+
     if (codecReceivedBuffers) {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "setting codecDrainState and codecDrainAction");
+
       codecDrainState = DRAIN_STATE_SIGNAL_END_OF_STREAM;
       codecDrainAction = DRAIN_ACTION_REINITIALIZE;
     } else {
@@ -2713,6 +2742,9 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
   }
 
   private void reinitializeCodec() throws ExoPlaybackException {
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "reinitializeCodec");
+
     releaseCodec();
     maybeInitCodecOrBypass();
   }
