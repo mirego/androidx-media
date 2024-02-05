@@ -530,9 +530,17 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
   protected List<MediaCodecInfo> getDecoderInfos(
       MediaCodecSelector mediaCodecSelector, Format format, boolean requiresSecureDecoder)
       throws DecoderQueryException {
-    return MediaCodecUtil.getDecoderInfosSortedByFormatSupport(
+    List<MediaCodecInfo> mediaCodecInfoList = MediaCodecUtil.getDecoderInfosSortedByFormatSupport(
         getDecoderInfos(context, mediaCodecSelector, format, requiresSecureDecoder, tunneling),
         format);
+
+    // MIREGO START
+    for (MediaCodecInfo info: mediaCodecInfoList) {
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "listing codec infos for format %s: %s", format, info.name);
+    }
+    // MIREGO END
+
+    return mediaCodecInfoList;
   }
 
   // RenderControl implementation
