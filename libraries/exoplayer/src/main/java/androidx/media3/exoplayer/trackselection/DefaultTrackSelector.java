@@ -2303,6 +2303,7 @@ public class DefaultTrackSelector extends MappingTrackSelector
 
   // MIREGO: when we create a new track selection, we set that max to adaptive video tracks to limit their initial adaptive selection
   // since selection is made for every period, that number has to be set initially in the playback, and then reset by the app once the playback has started
+  // this value is directly set by the sub class
   protected int initialMaxBitrate = 0;
 
   /**
@@ -2546,6 +2547,7 @@ public class DefaultTrackSelector extends MappingTrackSelector
       // MIREGO START: added for starting bitrate
       if ( (initialMaxBitrate != 0) && (rendererType == C.TRACK_TYPE_VIDEO) && (rendererTrackSelections[i] instanceof AdaptiveTrackSelection)) {
         AdaptiveTrackSelection adaptiveSelection = (AdaptiveTrackSelection) rendererTrackSelections[i];
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "Setting initial max bitrate to video adaptive track: %d", initialMaxBitrate);
         adaptiveSelection.setInitialMaxBitrate(initialMaxBitrate);
       }
       // MIREGO END
