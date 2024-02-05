@@ -56,6 +56,7 @@ import androidx.media3.common.util.UnstableApi;
 import androidx.media3.common.util.Util;
 import androidx.media3.exoplayer.DecoderReuseEvaluation;
 import androidx.media3.exoplayer.DecoderReuseEvaluation.DecoderDiscardReasons;
+import java.util.List;
 import java.util.Objects;
 
 /** Information about a {@link MediaCodec} for a given MIME type. */
@@ -866,6 +867,19 @@ public final class MediaCodecInfo {
       // slightly exceeding the limits for a standard format (e.g., 1080p at 30 fps).
       double floorFrameRate = Math.floor(frameRate);
       if (!capabilities.areSizeAndRateSupported(width, height, floorFrameRate)) {
+        // MIREGO START
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "areSizeAndRateSupportedV21 returns false for %d x %d at %f", width, height, floorFrameRate);
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "isSizeSupported: %s  achievable rate: %s  supported frame rates: %s",
+            capabilities.isSizeSupported(width, height), capabilities.getAchievableFrameRatesFor(width, height), capabilities.getSupportedFrameRates());
+
+        List<VideoCapabilities.PerformancePoint> perfPoints = capabilities.getSupportedPerformancePoints();
+        if (perfPoints != null) {
+          Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "Perf points:");
+          for (VideoCapabilities.PerformancePoint point : perfPoints) {
+            Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "%s", point);
+          }
+        }
+        // MIREGO END
         return false;
       }
       if (SDK_INT < 24) {
