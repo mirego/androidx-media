@@ -16,6 +16,7 @@
 package androidx.media3.exoplayer.mediacodec;
 
 import static android.os.Build.VERSION.SDK_INT;
+import static androidx.media3.common.util.Util.shouldIgnoreCodecFpsLimitForResolution;
 import static androidx.media3.exoplayer.DecoderReuseEvaluation.DISCARD_REASON_AUDIO_CHANNEL_COUNT_CHANGED;
 import static androidx.media3.exoplayer.DecoderReuseEvaluation.DISCARD_REASON_AUDIO_ENCODING_CHANGED;
 import static androidx.media3.exoplayer.DecoderReuseEvaluation.DISCARD_REASON_AUDIO_SAMPLE_RATE_CHANGED;
@@ -56,7 +57,6 @@ import androidx.media3.common.util.UnstableApi;
 import androidx.media3.common.util.Util;
 import androidx.media3.exoplayer.DecoderReuseEvaluation;
 import androidx.media3.exoplayer.DecoderReuseEvaluation.DecoderDiscardReasons;
-import java.util.List;
 import java.util.Objects;
 
 /** Information about a {@link MediaCodec} for a given MIME type. */
@@ -859,7 +859,7 @@ public final class MediaCodecInfo {
 
     // VideoCapabilities.areSizeAndRateSupported incorrectly returns false if frameRate < 1 on some
     // versions of Android, so we only check the size in this case [Internal ref: b/153940404].
-    if (frameRate == Format.NO_VALUE || frameRate < 1) {
+    if (frameRate == Format.NO_VALUE || frameRate < 1 || shouldIgnoreCodecFpsLimitForResolution) {
       return capabilities.isSizeSupported(width, height);
     } else {
       // The signaled frame rate may be slightly higher than the actual frame rate, so we take the
@@ -871,14 +871,6 @@ public final class MediaCodecInfo {
         Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "areSizeAndRateSupportedV21 returns false for %d x %d at %f", width, height, floorFrameRate);
         Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "isSizeSupported: %s  achievable rate: %s  supported frame rates: %s",
             capabilities.isSizeSupported(width, height), capabilities.getAchievableFrameRatesFor(width, height), capabilities.getSupportedFrameRates());
-
-        List<VideoCapabilities.PerformancePoint> perfPoints = capabilities.getSupportedPerformancePoints();
-        if (perfPoints != null) {
-          Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "Perf points:");
-          for (VideoCapabilities.PerformancePoint point : perfPoints) {
-            Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "%s", point);
-          }
-        }
         // MIREGO END
         return false;
       }
