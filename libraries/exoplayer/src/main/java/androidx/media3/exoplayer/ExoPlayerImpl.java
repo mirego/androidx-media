@@ -403,6 +403,8 @@ import java.util.concurrent.TimeoutException;
         } else {
           tunnelingAudioSessionId = audioSessionId;
         }
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "audioSessionId: %d  tunnelingAudioSessionId: %d", audioSessionId, tunnelingAudioSessionId);
       }
       currentCueGroup = CueGroup.EMPTY_TIME_ZERO;
       throwsWhenUsingWrongThread = true;
@@ -464,6 +466,8 @@ import java.util.concurrent.TimeoutException;
     } finally {
       constructorFinished.open();
     }
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "ExoPlayerImpl init done");
   }
 
   @CanIgnoreReturnValue
