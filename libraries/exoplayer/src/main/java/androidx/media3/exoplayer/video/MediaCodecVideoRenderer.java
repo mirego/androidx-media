@@ -866,6 +866,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
   }
 
   private void setOutput(@Nullable Object output) throws ExoPlaybackException {
+    // MIREGO
+    Log.d(TAG, "setOutput()");
+
     // Handle unsupported (i.e., non-Surface) outputs by clearing the display surface.
     @Nullable Surface displaySurface = output instanceof Surface ? (Surface) output : null;
 
@@ -884,6 +887,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
 
     // We only need to update the codec if the display surface has changed.
     if (this.displaySurface != displaySurface) {
+      // MIREGO
+      Log.d(TAG, "setOutput() surface changed codec: %s codecNeedsSetOutputSurfaceWorkaround: %s", getCodec(), codecNeedsSetOutputSurfaceWorkaround);
+
       this.displaySurface = displaySurface;
       frameReleaseHelper.onSurfaceChanged(displaySurface);
       haveReportedFirstFrameRenderedForCurrentSurface = false;
@@ -928,6 +934,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
       maybeRenotifyVideoSizeChanged();
       maybeRenotifyRenderedFirstFrame();
     }
+
+    // MIREGO
+    Log.d(TAG, "setOutput() done");
   }
 
   @Override
