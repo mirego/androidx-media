@@ -146,6 +146,9 @@ public abstract class BaseRenderer implements Renderer, RendererCapabilities {
       long offsetUs,
       MediaSource.MediaPeriodId mediaPeriodId)
       throws ExoPlaybackException {
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "enable() %s", this);
+
     checkState(state == STATE_DISABLED);
     this.configuration = configuration;
     this.mediaPeriodId = mediaPeriodId;
@@ -157,6 +160,9 @@ public abstract class BaseRenderer implements Renderer, RendererCapabilities {
 
   @Override
   public final void start() throws ExoPlaybackException {
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "start() %s", this);
+
     checkState(state == STATE_ENABLED);
     state = STATE_STARTED;
     onStarted();
@@ -240,6 +246,9 @@ public abstract class BaseRenderer implements Renderer, RendererCapabilities {
 
   @Override
   public final void stop() {
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "stop() %s", this);
+
     checkState(state == STATE_STARTED);
     state = STATE_ENABLED;
     onStopped();
@@ -247,6 +256,9 @@ public abstract class BaseRenderer implements Renderer, RendererCapabilities {
 
   @Override
   public final void disable() {
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "disable() %s", this);
+
     checkState(state == STATE_ENABLED);
     formatHolder.clear();
     state = STATE_DISABLED;

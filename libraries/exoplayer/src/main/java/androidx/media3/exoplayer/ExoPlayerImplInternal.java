@@ -1148,6 +1148,9 @@ import java.util.Objects;
     updateRebufferingState(/* isRebuffering= */ false, /* resetLastRebufferRealtimeMs= */ false);
     notifyTrackSelectionPlayWhenReadyChanged(playWhenReady);
     if (!shouldPlayWhenReady()) {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "setPlayWhenReadyInternal !shouldPlayWhenReady()");
+
       stopRenderers();
       updatePlaybackPositions();
       if (playbackInfo.sleepingForOffload) {
@@ -1155,6 +1158,9 @@ import java.util.Objects;
       }
       queue.reevaluateBuffer(rendererPositionUs);
     } else {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "setPlayWhenReadyInternal state: %d", playbackInfo.playbackState);
+
       if (playbackInfo.playbackState == Player.STATE_READY) {
         mediaClock.start();
         startRenderers();
@@ -1426,6 +1432,9 @@ import java.util.Objects;
         maybeTriggerOnRendererReadyChanged(/* rendererIndex= */ i, allowsPlayback);
         renderersAllowPlayback = renderersAllowPlayback && allowsPlayback;
         if (!allowsPlayback) {
+          // MIREGO
+          Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "doSomeWork !allowsPlayback: mediaPeriod start: %d  duration: %d", playingPeriodHolder.info.startPositionUs, playingPeriodHolder.info.durationUs);
+
           maybeThrowRendererStreamError(/* rendererIndex= */ i);
         }
       }
@@ -1452,6 +1461,9 @@ import java.util.Objects;
       stopRenderers();
     } else if (playbackInfo.playbackState == Player.STATE_BUFFERING
         && shouldTransitionToReadyState(renderersAllowPlayback)) {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "doSomeWork setState STATE_READY");
+
       setState(Player.STATE_READY);
       pendingRecoverableRendererError = null; // Any pending error was successfully recovered from.
       if (shouldPlayWhenReady()) {
@@ -1464,6 +1476,9 @@ import java.util.Objects;
         && !(enabledRendererCount == 0 ? isTimelineReady() : renderersAllowPlayback)) {
       updateRebufferingState(
           /* isRebuffering= */ shouldPlayWhenReady(), /* resetLastRebufferRealtimeMs= */ false);
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "doSomeWork setState BUFFERING");
+
       setState(Player.STATE_BUFFERING);
       if (isRebuffering) {
         notifyTrackSelectionRebuffer();
@@ -2800,7 +2815,8 @@ import java.util.Objects;
                     : C.TIME_UNSET;
 
             //MIREGO
-            Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "maybeUpdateReadingPeriod setCurrentStreamFinal renderer: %s streamEndPositionUs: %d", renderer, streamEndPositionUs);
+            Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "maybeUpdateReadingPeriod setCurrentStreamFinal renderer: %s streamEndPositionUs: %d  duration: %d",
+                renderer, streamEndPositionUs, readingPeriodHolder.info.durationUs);
 
             renderer.setCurrentStreamFinal(readingPeriodHolder, streamEndPositionUs);
           }
@@ -3004,6 +3020,10 @@ import java.util.Objects;
               && newPlayingPeriodHolder.info.id.adGroupIndex == C.INDEX_UNSET
               && playbackInfo.periodId.nextAdGroupIndex
                   != newPlayingPeriodHolder.info.id.nextAdGroupIndex;
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "maybeUpdatePlayingPeriod changing period  start: %d  duration: %d", newPlayingPeriodHolder.info.startPositionUs, newPlayingPeriodHolder.info.durationUs);
+
       playbackInfo =
           handlePositionDiscontinuity(
               newPlayingPeriodHolder.info.id,
@@ -3381,6 +3401,10 @@ import java.util.Objects;
       long startPositionUs)
       throws ExoPlaybackException {
     RendererHolder renderer = renderers[rendererIndex];
+
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "enableRenderer %s", renderer);
+
     if (renderer.isRendererEnabled()) {
       return;
     }
@@ -3425,7 +3449,13 @@ import java.util.Objects;
         /* mediaPeriod= */ periodHolder);
     // Start the renderer if playing and the Playing and Reading periods are the same.
     if (playing && arePlayingAndReadingTheSamePeriod) {
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "renderer.start() %s", renderer);
+
       renderer.start();
+    } else { // MIREGO ADDED ELSE BLOCK
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "not starting renderer %s (not playing playWhenReady: %s state: %d)", renderer, shouldPlayWhenReady(), playbackInfo.playbackState);
     }
   }
 
