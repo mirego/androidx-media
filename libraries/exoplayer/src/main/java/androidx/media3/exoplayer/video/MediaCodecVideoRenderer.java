@@ -1349,10 +1349,16 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
   }
 
   private void setOutput(@Nullable Object output) throws ExoPlaybackException {
+    // MIREGO
+    Log.d(TAG, "setOutput()");
+
     // Handle unsupported (i.e., non-Surface) outputs by clearing the display surface.
     @Nullable Surface displaySurface = output instanceof Surface ? (Surface) output : null;
 
     if (this.displaySurface != displaySurface) {
+      // MIREGO
+      Log.d(TAG, "setOutput() surface changed codec: %s codecNeedsSetOutputSurfaceWorkaround: %s", getCodec(), codecNeedsSetOutputSurfaceWorkaround);
+
       this.displaySurface = displaySurface;
       if (videoSink == null) {
         videoFrameReleaseControl.setOutputSurface(displaySurface);
@@ -1399,6 +1405,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
       maybeRenotifyVideoSizeChanged();
       maybeRenotifyRenderedFirstFrame();
     }
+
+    // MIREGO
+    Log.d(TAG, "setOutput() done");
   }
 
   @Override
