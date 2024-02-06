@@ -161,6 +161,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
   private boolean haveReportedFirstFrameRenderedForCurrentSurface;
   private @C.VideoScalingMode int scalingMode;
   private @C.FirstFrameState int firstFrameState;
+  private boolean readyToRenderFirstFrameAfterReset;  // MIREGO added
   private long initialPositionUs;
   private long joiningDeadlineMs;
   private long droppedFrameAccumulationStartTimeMs;
@@ -694,6 +695,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
     }
     super.onPositionReset(positionUs, joining);
 
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "onPositionReset");
+
     if (videoSinkProvider.isInitialized()) {
       videoSinkProvider.setStreamOffsetUs(getOutputStreamOffsetUs());
     }
@@ -720,6 +724,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
     if (super.isReady()
         && (videoSink == null || videoSink.isReady())
         && (firstFrameState == C.FIRST_FRAME_RENDERED
+            || readyToRenderFirstFrameAfterReset  // MIREGO added
             || (placeholderSurface != null && displaySurface == placeholderSurface)
             || getCodec() == null
             || tunneling)) {
@@ -775,6 +780,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
 
   @Override
   protected void onDisabled() {
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "onDisabled");
+
     reportedVideoSize = null;
     lowerFirstFrameState(C.FIRST_FRAME_NOT_RENDERED_ONLY_ALLOWED_IF_STARTED);
     haveReportedFirstFrameRenderedForCurrentSurface = false;
@@ -1446,6 +1454,15 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
       return true;
     }
 
+    // MIREGO START
+    boolean shouldRenderFirstFrame =
+        firstFrameState != C.FIRST_FRAME_RENDERED || isStarted;
+
+    if (joiningDeadlineMs == C.TIME_UNSET && shouldRenderFirstFrame) {
+      readyToRenderFirstFrameAfterReset = true;
+    }
+    // MIREGO END
+
     if (!isStarted || positionUs == initialPositionUs) {
       return false;
     }
@@ -1687,6 +1704,10 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
   @Override
   protected void onProcessedStreamChange() {
     super.onProcessedStreamChange();
+
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "onProcessedStreamChange()");
+
     lowerFirstFrameState(C.FIRST_FRAME_NOT_RENDERED_AFTER_STREAM_CHANGE);
     if (videoSinkProvider.isInitialized()) {
       videoSinkProvider.setStreamOffsetUs(getOutputStreamOffsetUs());
@@ -1930,6 +1951,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
 
   private void lowerFirstFrameState(@C.FirstFrameState int firstFrameState) {
     this.firstFrameState = min(this.firstFrameState, firstFrameState);
+    readyToRenderFirstFrameAfterReset = false; // MIREGO ADDED
     // The first frame notification is triggered by renderOutputBuffer or renderOutputBufferV21 for
     // non-tunneled playback, onQueueInputBuffer for tunneled playback prior to API level 23, and
     // OnFrameRenderedListenerV23.onFrameRenderedListener for tunneled playback on API level 23 and
