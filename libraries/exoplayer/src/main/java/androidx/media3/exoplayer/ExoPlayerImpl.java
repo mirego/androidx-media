@@ -2693,10 +2693,6 @@ import java.util.concurrent.CopyOnWriteArraySet;
     }
     this.videoOutput = videoOutput;
     if (!isSuccess) {
-      // MIREGO
-      Log.e(TAG,
-          String.format("setVideoOutputInternal() detachSurfaceTimeoutMs: %s, ERROR_CODE_TIMEOUT",
-              detachSurfaceTimeoutMs));
       stopInternal(
           ExoPlaybackException.createForUnexpected(
               new ExoTimeoutException(ExoTimeoutException.TIMEOUT_OPERATION_DETACH_SURFACE),
