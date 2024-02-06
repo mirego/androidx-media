@@ -222,6 +222,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
   private boolean haveReportedFirstFrameRenderedForCurrentSurface;
   private @C.VideoScalingMode int scalingMode;
   private @C.VideoChangeFrameRateStrategy int changeFrameRateStrategy;
+  private boolean readyToRenderFirstFrameAfterReset;  // MIREGO added
   private long droppedFrameAccumulationStartTimeMs;
   private int droppedFrames;
   private int consecutiveDroppedFrameCount;
@@ -1074,6 +1075,10 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
       lastResetToKeyFramePositionUs = positionUs;
     }
     super.onPositionReset(positionUs, joining, sampleStreamIsResetToKeyFrame);
+
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "onPositionReset");
+
     if (videoSink == null) {
       videoFrameReleaseControl.reset();
     }
@@ -1177,6 +1182,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
 
   @Override
   protected void onDisabled() {
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "onDisabled");
+
     reportedVideoSize = null;
     periodDurationUs = C.TIME_UNSET;
     maybeSetupTunnelingForFirstFrame();
@@ -2130,6 +2138,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
     }
     pendingVideoSinkInputStreamChange = true;
     maybeSetupTunnelingForFirstFrame();
+
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "onProcessedStreamChange()");
   }
 
   /**
