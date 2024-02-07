@@ -1192,7 +1192,7 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
         return;
       }
       try {
-        initCodec(codecInfo, crypto);
+        initCodecRetry(codecInfo, crypto, availableCodecInfos.peekFirst()); // MIREGO added back retry workaround
       } catch (Exception e) {
         Log.w(TAG, "Failed to initialize decoder: " + codecInfo, e);
         // This codec failed to initialize, so fall back to the next codec in the list (if any). We
@@ -1216,6 +1216,40 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
     }
 
     this.availableCodecInfos = null;
+  }
+
+  // MIREGO added function
+  private void initCodecRetry(MediaCodecInfo codecInfo, MediaCrypto crypto, MediaCodecInfo preferredCodecInfo) throws Exception {
+        try {
+          Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "maybeInitCodecWithFallback initCodec %s %s", codecInfo, crypto);
+
+          initCodec(codecInfo, crypto);
+        } catch (Exception e) {
+          if (codecInfo == preferredCodecInfo) {
+            // If creating the preferred decoder failed then sleep briefly before retrying.
+            // Workaround for [internal b/191966399].
+            // See also https://github.com/google/ExoPlayer/issues/8696.
+            Log.w(TAG, "Preferred decoder instantiation failed. Sleeping for 50ms then retrying.");
+
+            int currentDelayMs = 50;
+            Exception lastException = null;
+            for (int retry = 0; retry < 3; retry++) {
+              try {
+                Thread.sleep(/* millis= */ currentDelayMs);
+                Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "initCodec retry %s %s", codecInfo, crypto);
+                initCodec(codecInfo, crypto);
+                return;
+              } catch (Exception e2) {
+                currentDelayMs += 50;
+                Log.w(TAG, "initCodec retry failed. Sleeping for " + currentDelayMs + " ms then retrying.");
+                lastException = e2;
+              }
+            }
+            throw lastException;
+          } else {
+            throw e;
+          }
+        }
   }
 
   private List<MediaCodecInfo> getAvailableCodecInfos(boolean mediaCryptoRequiresSecureDecoder)
