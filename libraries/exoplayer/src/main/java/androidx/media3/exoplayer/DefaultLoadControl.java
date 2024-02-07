@@ -272,6 +272,8 @@ public class DefaultLoadControl implements LoadControl {
 
   private long threadId;
 
+  private long lastTargetBufferSizeLog; // MIREGO: added to throttle a log
+
   /** Constructs a new instance, using the {@code DEFAULT_*} constants defined in this class. */
   public DefaultLoadControl() {
     this(
@@ -396,9 +398,16 @@ public class DefaultLoadControl implements LoadControl {
     if (parameters.bufferedDurationUs < minBufferUs) {
       playerLoadingState.isLoading = prioritizeTimeOverSizeThresholds || !targetBufferSizeReached;
       if (!playerLoadingState.isLoading && parameters.bufferedDurationUs < 500_000) {
-        Log.w(
-            "DefaultLoadControl",
-            "Target buffer size reached with less than 500ms of buffered media data.");
+        // MIREGO START: added throttling and log details
+        long currentTimeMs = System.currentTimeMillis();
+        if (currentTimeMs > lastTargetBufferSizeLog + 1000) {
+          lastTargetBufferSizeLog = currentTimeMs;
+          Log.w(
+              "DefaultLoadControl",
+              "Target buffer size reached with less than 500ms of buffered media data. minBufferUs: "
+                  + this.minBufferUs + " bufferedDurationUs: " + parameters.bufferedDurationUs);
+        }
+        // MIREGO END
       }
     } else if (parameters.bufferedDurationUs >= maxBufferUs || targetBufferSizeReached) {
       playerLoadingState.isLoading = false;
