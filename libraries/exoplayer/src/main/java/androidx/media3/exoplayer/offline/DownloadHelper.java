@@ -478,6 +478,12 @@ public final class DownloadHelper {
     return immutableTrackSelectionsByPeriodAndRenderer[periodIndex][rendererIndex];
   }
 
+  // MIREGO added
+  public MediaPeriod[] getPeriods() {
+    assertPreparedWithMedia();
+    return mediaPreparer.mediaPeriods;
+  }
+
   /**
    * Clears the selection of tracks for a period. Must not be called until after preparation
    * completes.
