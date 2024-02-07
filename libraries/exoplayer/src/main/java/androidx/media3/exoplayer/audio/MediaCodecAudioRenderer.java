@@ -53,6 +53,7 @@ import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.FormatHolder;
 import androidx.media3.exoplayer.MediaClock;
 import androidx.media3.exoplayer.PlayerMessage.Target;
+import androidx.media3.exoplayer.Renderer;
 import androidx.media3.exoplayer.RendererCapabilities;
 import androidx.media3.exoplayer.audio.AudioRendererEventListener.EventDispatcher;
 import androidx.media3.exoplayer.audio.AudioSink.InitializationException;
@@ -428,12 +429,21 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
     return audioSink.supportsFormat(format);
   }
 
+  @Override // MIREGO: added - fix format issue when switching from decrypt-only to bypass
+  protected void initBypass(Format format) {
+    decryptOnlyCodecFormat = null; //avoid forcing audioSink format to an obsolete value
+    super.initBypass(format);
+  }
+
   @Override
   protected MediaCodecAdapter.Configuration getMediaCodecConfiguration(
       MediaCodecInfo codecInfo,
       Format format,
       @Nullable MediaCrypto crypto,
       float codecOperatingRate) {
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "getMediaCodecConfiguration format: %s", format);
+
     codecMaxInputSize = getCodecMaxInputSize(codecInfo, format, getStreamFormats());
     codecNeedsDiscardChannelsWorkaround = codecNeedsDiscardChannelsWorkaround(codecInfo.name);
     codecNeedsVorbisToAndroidChannelMappingWorkaround =
@@ -445,6 +455,11 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
         MimeTypes.AUDIO_RAW.equals(codecInfo.mimeType)
             && !MimeTypes.AUDIO_RAW.equals(format.sampleMimeType);
     decryptOnlyCodecFormat = decryptOnlyCodecEnabled ? format : null;
+
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG,"getMediaCodecConfiguration codecInfo.mimeType: %s format.sampleMimeType: %s decryptOnlyCodecFormat: %s",
+        codecInfo.mimeType, format.sampleMimeType, decryptOnlyCodecFormat);
+
     return MediaCodecAdapter.Configuration.createForAudioDecoding(
         codecInfo, mediaFormat, format, crypto);
   }
@@ -529,6 +544,10 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
       throws ExoPlaybackException {
     Format audioSinkInputFormat;
     @Nullable int[] channelMap = null;
+
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG,"onOutputFormatChanged format: %s decryptOnlyCodecFormat: %s codec: %s", format, decryptOnlyCodecFormat, getCodec());
+
     if (decryptOnlyCodecFormat != null) { // Direct playback with a codec for decryption.
       audioSinkInputFormat = decryptOnlyCodecFormat;
     } else if (getCodec() == null) { // Direct playback with codec bypass.
@@ -631,6 +650,9 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
 
   @Override
   protected void onStopped() {
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "onStopped()");
+
     updateCurrentPosition();
     audioSink.pause();
     super.onStopped();
@@ -653,6 +675,9 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
 
   @Override
   protected void onReset() {
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "onReset audioSinkNeedsReset: %s", audioSinkNeedsReset);
+
     try {
       super.onReset();
     } finally {
@@ -718,6 +743,10 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
       throws ExoPlaybackException {
     checkNotNull(buffer);
 
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "processOutputBuffer presentationTime: %d sampleCount: %d (decryptOnlyCodecFormat %s  bufferFlags: %d isDecodeOnlyBuffer %s)",
+        bufferPresentationTimeUs, sampleCount, decryptOnlyCodecFormat, bufferFlags, isDecodeOnlyBuffer);
+
     if (decryptOnlyCodecFormat != null
         && (bufferFlags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
       // Discard output buffers from the passthrough (raw) decoder containing codec specific data.
@@ -752,6 +781,9 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
     }
 
     if (fullyConsumed) {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "processOutputBuffer fully consumed");
+
       if (codec != null) {
         codec.releaseOutputBuffer(bufferIndex, false);
       }
@@ -806,7 +838,10 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
         audioSink.setSkipSilenceEnabled((Boolean) checkNotNull(message));
         break;
       case MSG_SET_AUDIO_SESSION_ID:
-        audioSink.setAudioSessionId((Integer) checkNotNull(message));
+        // MIREGO START: use 2 audio session ids
+        Renderer.AudioSessionIdMessageData msgData = (Renderer.AudioSessionIdMessageData) message;
+        audioSink.setAudioSessionId(msgData.standardSessionId, msgData.tunnelingSessionId);
+        // MIREGO END
         break;
       case MSG_SET_WAKEUP_LISTENER:
         this.wakeupListener = (WakeupListener) message;

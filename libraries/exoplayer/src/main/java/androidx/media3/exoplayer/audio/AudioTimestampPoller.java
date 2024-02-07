@@ -24,6 +24,7 @@ import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.media3.common.C;
+import androidx.media3.common.util.Log;
 import androidx.media3.common.util.Util;
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
@@ -87,6 +88,8 @@ import java.lang.annotation.Target;
 
   /** The polling interval for {@link #STATE_ERROR}. */
   private static final int ERROR_POLL_INTERVAL_US = 500_000;
+
+  private static final String TAG = "AudioTimeStampPoller"; /* MIREGO */
 
   /**
    * The minimum duration to remain in {@link #STATE_INITIALIZING} if no timestamps are being
@@ -299,8 +302,21 @@ import java.lang.annotation.Target;
      * false} if no timestamp is available, in which case those methods should not be called.
      */
     public boolean maybeUpdateTimestamp() {
+      // MIREGO: added those to log
+      long lastFramePos = audioTimestamp.framePosition;
+      long lastTime = audioTimestamp.nanoTime;
+
       boolean updated = audioTrack.getTimestamp(audioTimestamp);
       if (updated) {
+
+        // MIREGO: added block to log
+        long deltaFrame = audioTimestamp.framePosition - lastFramePos;
+        long deltaTime = audioTimestamp.nanoTime - lastTime;
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG,"maybeUpdateTimestamp updated frame pos: %d  time: %d us  deltaFrame: %d  deltaTime: %d us frame avg time: %d ns  last: %d (track: %s  state: %d  playstate: %d) playbackRate: %d sampleRate: %d",
+            audioTimestamp.framePosition, audioTimestamp.nanoTime / 1000, deltaFrame, deltaTime / 1000, deltaFrame > 0 ? deltaTime / deltaFrame: 0,
+            lastTimestampRawPositionFrames, audioTrack, audioTrack.getState(), audioTrack.getPlayState(),
+            audioTrack.getPlaybackRate(), audioTrack.getSampleRate());
+
         long rawPositionFrames = audioTimestamp.framePosition;
         if (lastTimestampRawPositionFrames > rawPositionFrames) {
           // The value must have wrapped around.

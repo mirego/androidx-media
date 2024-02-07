@@ -58,6 +58,7 @@ import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.FormatHolder;
 import androidx.media3.exoplayer.MediaClock;
 import androidx.media3.exoplayer.PlayerMessage.Target;
+import androidx.media3.exoplayer.Renderer;
 import androidx.media3.exoplayer.RendererCapabilities;
 import androidx.media3.exoplayer.audio.AudioRendererEventListener.EventDispatcher;
 import androidx.media3.exoplayer.audio.AudioSink.SinkFormatSupport;
@@ -279,6 +280,10 @@ public abstract class DecoderAudioRenderer<
   @Override
   public void render(long positionUs, long elapsedRealtimeUs) throws ExoPlaybackException {
     if (outputStreamEnded) {
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "render outputStreamEnded (position: %d)", positionUs);
+
       try {
         audioSink.playToEndOfStream();
       } catch (AudioSink.WriteException e) {
@@ -294,6 +299,10 @@ public abstract class DecoderAudioRenderer<
       FormatHolder formatHolder = getFormatHolder();
       flagsOnlyBuffer.clear();
       @ReadDataResult int result = readSource(formatHolder, flagsOnlyBuffer, FLAG_REQUIRE_FORMAT);
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "render read format result: %d", result);
+
       if (result == C.RESULT_FORMAT_READ) {
         onInputFormatChanged(formatHolder);
       } else if (result == C.RESULT_BUFFER_READ) {
@@ -318,6 +327,9 @@ public abstract class DecoderAudioRenderer<
 
     if (decoder != null) {
       try {
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE4, TAG, "render drain and feed");
+
         // Rendering loop.
         TraceUtil.beginSection("drainAndFeed");
         while (drainOutputBuffer()) {}
@@ -422,6 +434,9 @@ public abstract class DecoderAudioRenderer<
     }
 
     if (outputBuffer.isEndOfStream()) {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "drainOutputBuffer outputBuffer.isEndOfStream");
+
       if (decoderReinitializationState == REINITIALIZATION_STATE_WAIT_END_OF_STREAM) {
         // We're waiting to re-initialize the decoder, and have now processed all final buffers.
         releaseDecoder();
@@ -454,6 +469,10 @@ public abstract class DecoderAudioRenderer<
               .setSelectionFlags(inputFormat.selectionFlags)
               .setRoleFlags(inputFormat.roleFlags)
               .build();
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "drainOutputBuffer configure audioSink format: %s", outputFormat);
+
       audioSink.configure(outputFormat, /* specifiedBufferSize= */ 0, getChannelMapping(decoder));
       audioTrackNeedsConfigure = false;
     }
@@ -461,6 +480,10 @@ public abstract class DecoderAudioRenderer<
     if (audioSink.handleBuffer(
         outputBuffer.data, outputBuffer.timeUs, /* encodedAccessUnitCount= */ 1)) {
       decoderCounters.renderedOutputBufferCount++;
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE4, TAG, "drainOutputBuffer audioSink.handleBuffer() rendered buffers count %d", decoderCounters.renderedOutputBufferCount);
+
       outputBuffer.release();
       outputBuffer = null;
       return true;
@@ -497,17 +520,28 @@ public abstract class DecoderAudioRenderer<
         || decoderReinitializationState == REINITIALIZATION_STATE_WAIT_END_OF_STREAM
         || inputStreamEnded) {
       // We need to reinitialize the decoder or the input stream has ended.
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "feedInputBuffer needs codec reinit");
+
       return false;
     }
 
     if (inputBuffer == null) {
       inputBuffer = decoder.dequeueInputBuffer();
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "feedInputBuffer dequeueInputBuffer %s", inputBuffer);
+
       if (inputBuffer == null) {
         return false;
       }
     }
 
     if (decoderReinitializationState == REINITIALIZATION_STATE_SIGNAL_END_OF_STREAM) {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "feedInputBuffer REINITIALIZATION_STATE_SIGNAL_END_OF_STREAM (requeued buffer: %s)", inputBuffer);
+
       inputBuffer.setFlags(C.BUFFER_FLAG_END_OF_STREAM);
       decoder.queueInputBuffer(inputBuffer);
       inputBuffer = null;
@@ -516,7 +550,13 @@ public abstract class DecoderAudioRenderer<
     }
 
     FormatHolder formatHolder = getFormatHolder();
-    switch (readSource(formatHolder, inputBuffer, /* readFlags= */ 0)) {
+
+    // MIREGO START
+    int readResult = readSource(formatHolder, inputBuffer, /* readFlags= */ 0);
+    Log.v(Log.LOG_LEVEL_VERBOSE4, TAG, "feedInputBuffer readSource result: %d", readResult);
+    // MIREGO END
+
+    switch (readResult) {
       case C.RESULT_NOTHING_READ:
         return false;
       case C.RESULT_FORMAT_READ:
@@ -694,7 +734,9 @@ public abstract class DecoderAudioRenderer<
         audioSink.setSkipSilenceEnabled((Boolean) message);
         break;
       case MSG_SET_AUDIO_SESSION_ID:
-        audioSink.setAudioSessionId((Integer) message);
+        // MIREGO: use 2 audio session ids
+        Renderer.AudioSessionIdMessageData msgData = (Renderer.AudioSessionIdMessageData) message;
+        audioSink.setAudioSessionId(msgData.standardSessionId, msgData.tunnelingSessionId);
         break;
       case MSG_SET_PREFERRED_AUDIO_DEVICE:
         if (Util.SDK_INT >= 23) {

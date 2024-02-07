@@ -22,6 +22,7 @@ import static androidx.media3.common.util.Assertions.checkArgument;
 import static androidx.media3.common.util.Assertions.checkNotNull;
 import static androidx.media3.common.util.Assertions.checkState;
 import static androidx.media3.common.util.Util.castNonNull;
+import static androidx.media3.common.util.Util.useDifferentAudioSessionIdForTunneling;
 import static androidx.media3.exoplayer.Renderer.MSG_SET_AUDIO_ATTRIBUTES;
 import static androidx.media3.exoplayer.Renderer.MSG_SET_AUDIO_SESSION_ID;
 import static androidx.media3.exoplayer.Renderer.MSG_SET_AUX_EFFECT_INFO;
@@ -209,6 +210,7 @@ import java.util.concurrent.TimeoutException;
   @Nullable private DecoderCounters videoDecoderCounters;
   @Nullable private DecoderCounters audioDecoderCounters;
   private int audioSessionId;
+  private int tunnelingAudioSessionId; // MIREGO ADDED
   private AudioAttributes audioAttributes;
   private float volume;
   private boolean skipSilenceEnabled;
@@ -374,8 +376,20 @@ import java.util.concurrent.TimeoutException;
       maskingWindowIndex = C.INDEX_UNSET;
       if (Util.SDK_INT < 21) {
         audioSessionId = initializeKeepSessionIdAudioTrack(C.AUDIO_SESSION_ID_UNSET);
+
+        // MIREGO
+        tunnelingAudioSessionId = audioSessionId;
       } else {
         audioSessionId = Util.generateAudioSessionIdV21(applicationContext);
+
+        // MIREGO: can use a different session for tunneling
+        if (useDifferentAudioSessionIdForTunneling) {
+          tunnelingAudioSessionId = Util.generateAudioSessionIdV21(applicationContext);
+        } else {
+          tunnelingAudioSessionId = audioSessionId;
+        }
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "audioSessionId: %d  tunnelingAudioSessionId: %d", audioSessionId, tunnelingAudioSessionId);
       }
       currentCueGroup = CueGroup.EMPTY_TIME_ZERO;
       throwsWhenUsingWrongThread = true;
@@ -415,8 +429,15 @@ import java.util.concurrent.TimeoutException;
       surfaceSize = Size.UNKNOWN;
 
       trackSelector.setAudioAttributes(audioAttributes);
-      sendRendererMessage(TRACK_TYPE_AUDIO, MSG_SET_AUDIO_SESSION_ID, audioSessionId);
-      sendRendererMessage(TRACK_TYPE_VIDEO, MSG_SET_AUDIO_SESSION_ID, audioSessionId);
+
+      // MIREGO START: send 2 session ids
+      Renderer.AudioSessionIdMessageData msgData = new Renderer.AudioSessionIdMessageData();
+      msgData.standardSessionId = audioSessionId;
+      msgData.tunnelingSessionId = tunnelingAudioSessionId;
+      sendRendererMessage(TRACK_TYPE_AUDIO, MSG_SET_AUDIO_SESSION_ID, msgData);
+      sendRendererMessage(TRACK_TYPE_VIDEO, MSG_SET_AUDIO_SESSION_ID, msgData);
+      // MIREGO END
+
       sendRendererMessage(TRACK_TYPE_AUDIO, MSG_SET_AUDIO_ATTRIBUTES, audioAttributes);
       sendRendererMessage(TRACK_TYPE_VIDEO, MSG_SET_SCALING_MODE, videoScalingMode);
       sendRendererMessage(
@@ -429,6 +450,8 @@ import java.util.concurrent.TimeoutException;
     } finally {
       constructorFinished.open();
     }
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "ExoPlayerImpl init done");
   }
 
   @CanIgnoreReturnValue
@@ -996,6 +1019,8 @@ import java.util.concurrent.TimeoutException;
       this.foregroundMode = foregroundMode;
       if (!internalPlayer.setForegroundMode(foregroundMode)) {
         // One of the renderers timed out releasing its resources.
+        // MIREGO
+        Log.e(TAG, String.format("setForegroundMode(%s), ERROR_CODE_TIMEOUT", foregroundMode));
         stopInternal(
             ExoPlaybackException.createForUnexpected(
                 new ExoTimeoutException(ExoTimeoutException.TIMEOUT_OPERATION_SET_FOREGROUND_MODE),
@@ -1039,6 +1064,8 @@ import java.util.concurrent.TimeoutException;
     audioFocusManager.release();
     if (!internalPlayer.release()) {
       // One of the renderers timed out releasing its resources.
+      // MIREGO
+      Log.e(TAG, "release(), ERROR_CODE_TIMEOUT");
       listeners.sendEvent(
           Player.EVENT_PLAYER_ERROR,
           listener ->
@@ -1489,8 +1516,16 @@ import java.util.concurrent.TimeoutException;
       initializeKeepSessionIdAudioTrack(audioSessionId);
     }
     this.audioSessionId = audioSessionId;
-    sendRendererMessage(TRACK_TYPE_AUDIO, MSG_SET_AUDIO_SESSION_ID, audioSessionId);
-    sendRendererMessage(TRACK_TYPE_VIDEO, MSG_SET_AUDIO_SESSION_ID, audioSessionId);
+
+    // MIREGO START: replaced single session with AudioSessionIdMessageData
+    Log.e(TAG, "shouldn't use setAudioSessionId() since we need to use 2 session ids");
+    Renderer.AudioSessionIdMessageData msgData = new Renderer.AudioSessionIdMessageData();
+    msgData.standardSessionId = audioSessionId;
+    msgData.tunnelingSessionId = audioSessionId;
+    sendRendererMessage(TRACK_TYPE_AUDIO, MSG_SET_AUDIO_SESSION_ID, msgData);
+    sendRendererMessage(TRACK_TYPE_VIDEO, MSG_SET_AUDIO_SESSION_ID, msgData);
+    // MIREGO END
+
     int finalAudioSessionId = audioSessionId;
     listeners.sendEvent(
         EVENT_AUDIO_SESSION_ID, listener -> listener.onAudioSessionIdChanged(finalAudioSessionId));
@@ -2671,12 +2706,24 @@ import java.util.concurrent.TimeoutException;
       }
     }
     boolean messageDeliveryTimedOut = false;
+
+    // MIREGO START
+    PlayerMessage lastProcessingMessage = null;
+    int processedMsgCount = 0;
+    // MIREGO END
+
     if (this.videoOutput != null && this.videoOutput != videoOutput) {
       // We're replacing an output. Block to ensure that this output will not be accessed by the
       // renderers after this method returns.
       try {
         for (PlayerMessage message : messages) {
+          // MIREGO
+          lastProcessingMessage = message;
+
           message.blockUntilDelivered(detachSurfaceTimeoutMs);
+
+          // MIREGO
+          processedMsgCount ++;
         }
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
@@ -2691,6 +2738,23 @@ import java.util.concurrent.TimeoutException;
     }
     this.videoOutput = videoOutput;
     if (messageDeliveryTimedOut) {
+      // MIREGO START
+      // MIREGO: log playback thread callstack to investigate timeouts
+      StackTraceElement[] stack = internalPlayer.getPlaybackLooper().getThread().getStackTrace();
+      StringBuilder builder = new StringBuilder(2000);
+      builder.append("Hung playback thread Stack trace:\n");
+      for (StackTraceElement element : stack) {
+        builder.append(element).append("\n");
+      }
+      Log.e(TAG, builder.toString());
+
+      PlayerMessage.Target msgTarget = lastProcessingMessage != null ? lastProcessingMessage.getTarget() : null;
+
+      Log.e(TAG,
+          String.format("setVideoOutputInternal() detachSurfaceTimeoutMs: %s, ERROR_CODE_TIMEOUT, target: %s processed before: %d",
+              detachSurfaceTimeoutMs, msgTarget, processedMsgCount));
+      // MIREGO END
+
       stopInternal(
           ExoPlaybackException.createForUnexpected(
               new ExoTimeoutException(ExoTimeoutException.TIMEOUT_OPERATION_DETACH_SURFACE),
@@ -3017,6 +3081,12 @@ import java.util.concurrent.TimeoutException;
     @Override
     public void onDroppedFrames(int count, long elapsed) {
       analyticsCollector.onDroppedFrames(count, elapsed);
+    }
+
+    //MIREGO added
+    @Override
+    public void onQueuedFrames(int count, long elapsed) {
+      analyticsCollector.onQueuedFrames(count, elapsed);
     }
 
     @Override

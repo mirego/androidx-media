@@ -161,6 +161,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
   private boolean haveReportedFirstFrameRenderedForCurrentSurface;
   private @C.VideoScalingMode int scalingMode;
   private @C.FirstFrameState int firstFrameState;
+  private boolean readyToRenderFirstFrameAfterReset;  // MIREGO added
   private long initialPositionUs;
   private long joiningDeadlineMs;
   private long droppedFrameAccumulationStartTimeMs;
@@ -182,6 +183,21 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
   /* package */ @Nullable OnFrameRenderedListenerV23 tunnelingOnFrameRenderedListener;
   @Nullable private VideoFrameMetadataListener frameMetadataListener;
   @Nullable private VideoSink videoSink;
+
+  // MIREGO added block
+  private int skipCount = 0;
+  private long lastRender = 0;
+  private long elapsedRealtimeNowUsPrev = 0;
+  private long elapsedRealtimeUsPrev = 0;
+  private long positionUsPrev = 0;
+  private long bufferPresentationTimeUsPrev = 0;
+  private long frameDurationUs = 0;
+  private long firstFrameRenderedSystemMs = 0;
+  private long lastRenderedTunneledBufferPresentationTimeUs = 0;
+  private int queuedFrames = 0;
+  private long queuedFrameAccumulationStartTimeMs;
+  private static final long IGNORE_PRIMING_DROPPED_FRAMES_MS = 400; // when the tunneling is priming, it's expected that we'll get dropped frames. Ignore them.
+  private static final long NOTIFY_QUEUED_FRAMES_THRESHOLD = 100;
 
   /**
    * @param context A context.
@@ -518,9 +534,17 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
   protected List<MediaCodecInfo> getDecoderInfos(
       MediaCodecSelector mediaCodecSelector, Format format, boolean requiresSecureDecoder)
       throws DecoderQueryException {
-    return MediaCodecUtil.getDecoderInfosSortedByFormatSupport(
+    List<MediaCodecInfo> mediaCodecInfoList = MediaCodecUtil.getDecoderInfosSortedByFormatSupport(
         getDecoderInfos(context, mediaCodecSelector, format, requiresSecureDecoder, tunneling),
         format);
+
+    // MIREGO START
+    for (MediaCodecInfo info: mediaCodecInfoList) {
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "listing codec infos for format %s: %s", format, info.name);
+    }
+    // MIREGO END
+
+    return mediaCodecInfoList;
   }
 
   // RenderControl implementation
@@ -640,6 +664,10 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
     super.onEnabled(joining, mayRenderStartOfStream);
     boolean tunneling = getConfiguration().tunneling;
     checkState(!tunneling || tunnelingAudioSessionId != C.AUDIO_SESSION_ID_UNSET);
+
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "onEnabled tunneling: %s", tunneling);
+
     if (this.tunneling != tunneling) {
       this.tunneling = tunneling;
       releaseCodec();
@@ -667,6 +695,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
     }
     super.onPositionReset(positionUs, joining);
 
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "onPositionReset");
+
     if (videoSinkProvider.isInitialized()) {
       videoSinkProvider.setStreamOffsetUs(getOutputStreamOffsetUs());
     }
@@ -693,6 +724,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
     if (super.isReady()
         && (videoSink == null || videoSink.isReady())
         && (firstFrameState == C.FIRST_FRAME_RENDERED
+            || readyToRenderFirstFrameAfterReset  // MIREGO added
             || (placeholderSurface != null && displaySurface == placeholderSurface)
             || getCodec() == null
             || tunneling)) {
@@ -712,6 +744,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
     }
   }
 
+  boolean hasNotifiedAvDesyncError = false;  // MIREGO
+  boolean hasNotifiedAvDesyncSkippedFramesError = false;  // MIREGO
+
   @Override
   protected void onStarted() {
     super.onStarted();
@@ -722,11 +757,21 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
     totalVideoFrameProcessingOffsetUs = 0;
     videoFrameProcessingOffsetCount = 0;
     frameReleaseHelper.onStarted();
+
+    // MIREGO added following block
+    firstFrameRenderedSystemMs = 0;
+    lastRenderedTunneledBufferPresentationTimeUs = 0;
+    hasNotifiedAvDesyncError = false;
+    hasNotifiedAvDesyncSkippedFramesError = false;
+    queuedFrames = 0;
+    droppedFrameAccumulationStartTimeMs = SystemClock.elapsedRealtime();
+    lastRender = 0;
   }
 
   @Override
   protected void onStopped() {
     joiningDeadlineMs = C.TIME_UNSET;
+    maybeNotifyQueuedFrames();  // MIREGO added
     maybeNotifyDroppedFrames();
     maybeNotifyVideoFrameProcessingOffset();
     frameReleaseHelper.onStopped();
@@ -735,6 +780,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
 
   @Override
   protected void onDisabled() {
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "onDisabled");
+
     reportedVideoSize = null;
     lowerFirstFrameState(C.FIRST_FRAME_NOT_RENDERED_ONLY_ALLOWED_IF_STARTED);
     haveReportedFirstFrameRenderedForCurrentSurface = false;
@@ -790,7 +838,8 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
         videoSinkProvider.setVideoFrameMetadataListener(frameMetadataListener);
         break;
       case MSG_SET_AUDIO_SESSION_ID:
-        int tunnelingAudioSessionId = (int) checkNotNull(message);
+        // MIREGO: use 2 audio session ids
+        int tunnelingAudioSessionId = ((AudioSessionIdMessageData) message).tunnelingSessionId;
         if (this.tunnelingAudioSessionId != tunnelingAudioSessionId) {
           this.tunnelingAudioSessionId = tunnelingAudioSessionId;
           if (tunneling) {
@@ -825,6 +874,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
   }
 
   private void setOutput(@Nullable Object output) throws ExoPlaybackException {
+    // MIREGO
+    Log.d(TAG, "setOutput()");
+
     // Handle unsupported (i.e., non-Surface) outputs by clearing the display surface.
     @Nullable Surface displaySurface = output instanceof Surface ? (Surface) output : null;
 
@@ -843,6 +895,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
 
     // We only need to update the codec if the display surface has changed.
     if (this.displaySurface != displaySurface) {
+      // MIREGO
+      Log.d(TAG, "setOutput() surface changed codec: %s codecNeedsSetOutputSurfaceWorkaround: %s", getCodec(), codecNeedsSetOutputSurfaceWorkaround);
+
       this.displaySurface = displaySurface;
       frameReleaseHelper.onSurfaceChanged(displaySurface);
       haveReportedFirstFrameRenderedForCurrentSurface = false;
@@ -887,6 +942,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
       maybeRenotifyVideoSizeChanged();
       maybeRenotifyRenderedFirstFrame();
     }
+
+    // MIREGO
+    Log.d(TAG, "setOutput() done");
   }
 
   @Override
@@ -1176,6 +1234,13 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
   @CallSuper
   @Override
   protected void onQueueInputBuffer(DecoderInputBuffer buffer) throws ExoPlaybackException {
+
+    // MIREGO: added
+    queuedFrames++;
+    if (queuedFrames >= NOTIFY_QUEUED_FRAMES_THRESHOLD) {
+      maybeNotifyQueuedFrames();
+    }
+
     // In tunneling mode the device may do frame rate conversion, so in general we can't keep track
     // of the number of buffers in the codec.
     if (!tunneling) {
@@ -1234,6 +1299,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
       // Neither the codec nor the video sink applies the rotation.
       unappliedRotationDegrees = format.rotationDegrees;
     }
+    frameDurationUs = (long) (1000000.0f / format.frameRate); // MIREGO added
     decodedVideoSize =
         new VideoSize(width, height, unappliedRotationDegrees, pixelWidthHeightRatio);
     frameReleaseHelper.onFormatChanged(format.frameRate);
@@ -1282,6 +1348,8 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
     }
   }
 
+  private long lastLogProcessOutputBufferMs = 0; // MIREGO
+
   @Override
   protected boolean processOutputBuffer(
       long positionUs,
@@ -1314,10 +1382,33 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
 
     if (isDecodeOnlyBuffer && !isLastBuffer) {
       skipOutputBuffer(codec, bufferIndex, presentationTimeUs);
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE4, TAG,"skipOutputBuffer");
+
       return true;
     }
 
     boolean isStarted = getState() == STATE_STARTED;
+
+    // MIREGO BEGIN
+    long elapsedRealtimeNowUs = SystemClock.elapsedRealtime() * 1000;
+    long elapsedRealtimeNowUsDelta = elapsedRealtimeNowUs - elapsedRealtimeNowUsPrev;
+    long elapsedRealtimeUsDelta = elapsedRealtimeUs - elapsedRealtimeUsPrev;
+
+    if (positionUsPrev != 0) {
+      long positionUsDelta = positionUs - positionUsPrev;
+      long bufferPresentationTimeUsDelta = bufferPresentationTimeUs - bufferPresentationTimeUsPrev;
+      Log.v(Log.LOG_LEVEL_VERBOSE4, TAG,"processOutputBuffer positionDelta %dus bufferPresentationTimeUsDelta %dus elapsedRealtimeNowUsDelta %dus elapsedRealtimeUsDelta %dus",
+          positionUsDelta, bufferPresentationTimeUsDelta, elapsedRealtimeNowUsDelta, elapsedRealtimeUsDelta);
+    }
+    positionUsPrev = positionUs;
+    bufferPresentationTimeUsPrev = bufferPresentationTimeUs;
+
+    elapsedRealtimeNowUsPrev = elapsedRealtimeNowUs;
+    elapsedRealtimeUsPrev = elapsedRealtimeUs;
+    // MIREGO END
+
     long earlyUs =
         calculateEarlyTimeUs(
             positionUs,
@@ -1328,6 +1419,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
             getClock());
 
     if (displaySurface == placeholderSurface) {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE4, TAG,"processOutputBuffer displaySurface == placeholderSurface");
+
       // Skip frames in sync with playback, so we'll be at the right frame if the mode changes.
       if (isBufferLate(earlyUs)) {
         skipOutputBuffer(codec, bufferIndex, presentationTimeUs);
@@ -1350,11 +1444,24 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
     boolean forceRenderOutputBuffer = shouldForceRender(positionUs, earlyUs);
     if (forceRenderOutputBuffer) {
       long releaseTimeNs = getClock().nanoTime();
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE3, TAG,"processOutputBuffer forceRenderOutputBuffer earlyUs: %d releaseTimeNs: %d", earlyUs, releaseTimeNs);
+
       notifyFrameMetadataListener(presentationTimeUs, releaseTimeNs, format);
       renderOutputBuffer(codec, bufferIndex, presentationTimeUs, releaseTimeNs);
       updateVideoFrameProcessingOffsetCounters(earlyUs);
       return true;
     }
+
+    // MIREGO START
+    boolean shouldRenderFirstFrame =
+        firstFrameState != C.FIRST_FRAME_RENDERED || isStarted;
+
+    if (joiningDeadlineMs == C.TIME_UNSET && shouldRenderFirstFrame) {
+      readyToRenderFirstFrameAfterReset = true;
+    }
+    // MIREGO END
 
     if (!isStarted || positionUs == initialPositionUs) {
       return false;
@@ -1369,16 +1476,60 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
     boolean treatDroppedBuffersAsSkipped = joiningDeadlineMs != C.TIME_UNSET;
     if (shouldDropBuffersToKeyframe(earlyUs, elapsedRealtimeUs, isLastBuffer)
         && maybeDropBuffersToKeyframe(positionUs, treatDroppedBuffersAsSkipped)) {
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE3, TAG,"processOutputBuffer shouldDropBuffersToKeyframe");
+
       return false;
     } else if (shouldDropOutputBuffer(earlyUs, elapsedRealtimeUs, isLastBuffer)) {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE3, TAG,"processOutputBuffer shouldDropOutputBuffer");
+
       if (treatDroppedBuffersAsSkipped) {
         skipOutputBuffer(codec, bufferIndex, presentationTimeUs);
       } else {
         dropOutputBuffer(codec, bufferIndex, presentationTimeUs);
       }
       updateVideoFrameProcessingOffsetCounters(earlyUs);
+
+      // MIREGO BEGIN
+      skipCount = 0;
+      lastRender = systemTimeNs / 1000;
+      // MIREGO END
+
       return true;
+    } else if (lastRender != 0){ // MIREGO ADDED else block
+      skipCount++;
+      long systemTimeUs = systemTimeNs / 1000;
+      long timeSinceLastRender = systemTimeUs - lastRender;
+      if ( timeSinceLastRender > 50000) {
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG,
+            "processOutputBuffer skip render for %dms (count: %d) earlyUs: %d",
+            (systemTimeUs - lastRender) / 1000, skipCount, earlyUs);
+        if ( (timeSinceLastRender > Util.timeSinceLastVideoRenderToLogErrorMs * 1000) && !hasNotifiedAvDesyncSkippedFramesError) {
+          hasNotifiedAvDesyncSkippedFramesError = true;
+          Log.e(TAG, new PlaybackException("AV desync: skipped video frames for more than 500 ms", new RuntimeException(), PlaybackException.ERROR_CODE_AUDIO_VIDEO_DESYNC));
+        }
+      }
     }
+
+    // MIREGO START
+    if ( (earlyUs < -Util.audioVideoDeltaToLogErrorMs * 1000 || earlyUs > Util.audioVideoDeltaToLogErrorMs * 1000) && !hasNotifiedAvDesyncError) {
+      Log.e(TAG, new PlaybackException("AV desync: video is offset by " + (earlyUs / 1000) + " ms",
+          new RuntimeException(), PlaybackException.ERROR_CODE_AUDIO_VIDEO_DESYNC));
+      hasNotifiedAvDesyncError = true;
+    }
+    int logLevel;
+    long timeMs = System.currentTimeMillis();
+    if (timeMs > lastLogProcessOutputBufferMs + 1000) {
+      logLevel = Log.LOG_LEVEL_VERBOSE1;
+      lastLogProcessOutputBufferMs = timeMs;
+    } else {
+      logLevel = Log.LOG_LEVEL_VERBOSE3;
+    }
+    Log.v(logLevel, TAG, "processOutputBuffer unadjustedFrameReleaseTimeUs: %d  bufferPresentationTimeUs: %d  positionUs: %d  earlyUs %d  playbackSpeed: %f",
+        unadjustedFrameReleaseTimeNs / 1000, bufferPresentationTimeUs, positionUs, earlyUs, getPlaybackSpeed());
+    // END MIREGO
 
     if (Util.SDK_INT >= 21) {
       // Let the underlying framework time the release.
@@ -1467,6 +1618,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
       boolean isStarted,
       float playbackSpeed,
       Clock clock) {
+
     // Calculate how early we are. In other words, the realtime duration that needs to elapse whilst
     // the renderer is started before the frame should be rendered. A negative value means that
     // we're already late.
@@ -1494,7 +1646,45 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
     maybeNotifyVideoSizeChanged(decodedVideoSize);
     decoderCounters.renderedOutputBufferCount++;
     maybeNotifyRenderedFirstFrame();
+
+    // MIREGO added
+    detectTunnelingDroppedFrames(presentationTimeUs);
+
     onProcessedOutputBuffer(presentationTimeUs);
+  }
+
+  /**
+   * MIREGO added
+   * Dropped frames reporting was not supported. To detect dropped frames, we use the onProcessedTunneledBuffer() callback.
+   * When we receive confirmation a frame has been rendered, we can check the delta between its timestamp and the
+   * timestamp of the previously rendered frame.
+   */
+  private void detectTunnelingDroppedFrames(long presentationTimeUs) {
+    long systemMs = System.currentTimeMillis();
+    if (firstFrameRenderedSystemMs == 0) {
+      firstFrameRenderedSystemMs = systemMs;
+    }
+
+    if (presentationTimeUs < lastRenderedTunneledBufferPresentationTimeUs) {
+      // workaround an issue on a platform where the codec sends us a faulty presentation time
+      // in that case, fake that we got what we expected.
+      presentationTimeUs = lastRenderedTunneledBufferPresentationTimeUs + frameDurationUs;
+    }
+
+    // each frame has a timestamp that is (previousFrameTimeStamp + 1 / frameRate)
+    // so if we rendered a frame more than (1 / framerate) later than the previous one, we dropped frame(s)
+    if ( (lastRenderedTunneledBufferPresentationTimeUs > 0)
+        && (frameDurationUs > 0)
+        && (systemMs - firstFrameRenderedSystemMs > IGNORE_PRIMING_DROPPED_FRAMES_MS)
+    ) {
+      // round to the nearest since timestamps don't have infinite precision (otherwise 0.99999999 of a frame duration would compute as 0 frame)
+      int framesElapsed = (int) (((presentationTimeUs - lastRenderedTunneledBufferPresentationTimeUs) + (frameDurationUs / 2)) / frameDurationUs);
+      if (framesElapsed > 1) {
+        updateDroppedBufferCounters(/* droppedInputBufferCount= */ 0, /* droppedDecoderBufferCount= */ framesElapsed - 1);
+      }
+    }
+
+    lastRenderedTunneledBufferPresentationTimeUs = presentationTimeUs;
   }
 
   /** Called when a output EOS was received in tunneling mode. */
@@ -1514,6 +1704,10 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
   @Override
   protected void onProcessedStreamChange() {
     super.onProcessedStreamChange();
+
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "onProcessedStreamChange()");
+
     lowerFirstFrameState(C.FIRST_FRAME_NOT_RENDERED_AFTER_STREAM_CHANGE);
     if (videoSinkProvider.isInitialized()) {
       videoSinkProvider.setStreamOffsetUs(getOutputStreamOffsetUs());
@@ -1757,6 +1951,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
 
   private void lowerFirstFrameState(@C.FirstFrameState int firstFrameState) {
     this.firstFrameState = min(this.firstFrameState, firstFrameState);
+    readyToRenderFirstFrameAfterReset = false; // MIREGO ADDED
     // The first frame notification is triggered by renderOutputBuffer or renderOutputBufferV21 for
     // non-tunneled playback, onQueueInputBuffer for tunneled playback prior to API level 23, and
     // OnFrameRenderedListenerV23.onFrameRenderedListener for tunneled playback on API level 23 and
@@ -1805,6 +2000,17 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
       eventDispatcher.droppedFrames(droppedFrames, elapsedMs);
       droppedFrames = 0;
       droppedFrameAccumulationStartTimeMs = now;
+    }
+  }
+
+  // MIREGO added
+  private void maybeNotifyQueuedFrames() {
+    if (queuedFrames > 0) {
+      long now = SystemClock.elapsedRealtime();
+      long elapsedMs = now - queuedFrameAccumulationStartTimeMs;
+      eventDispatcher.queuedFrames(queuedFrames, elapsedMs);
+      queuedFrames = 0;
+      queuedFrameAccumulationStartTimeMs = now;
     }
   }
 

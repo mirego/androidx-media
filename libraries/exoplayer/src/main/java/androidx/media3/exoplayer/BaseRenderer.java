@@ -26,6 +26,7 @@ import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Timeline;
 import androidx.media3.common.util.Assertions;
 import androidx.media3.common.util.Clock;
+import androidx.media3.common.util.Log;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.common.util.Util;
 import androidx.media3.decoder.DecoderInputBuffer;
@@ -60,6 +61,8 @@ public abstract class BaseRenderer implements Renderer, RendererCapabilities {
   private boolean streamIsFinal;
   private boolean throwRendererExceptionIsExecuting;
   private Timeline timeline;
+
+  private static final String TAG = "BaseRenderer"; /* MIREGO */
 
   @GuardedBy("lock")
   @Nullable
@@ -117,6 +120,9 @@ public abstract class BaseRenderer implements Renderer, RendererCapabilities {
       long offsetUs,
       MediaSource.MediaPeriodId mediaPeriodId)
       throws ExoPlaybackException {
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "enable() %s", this);
+
     Assertions.checkState(state == STATE_DISABLED);
     this.configuration = configuration;
     state = STATE_ENABLED;
@@ -127,6 +133,9 @@ public abstract class BaseRenderer implements Renderer, RendererCapabilities {
 
   @Override
   public final void start() throws ExoPlaybackException {
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "start() %s", this);
+
     Assertions.checkState(state == STATE_ENABLED);
     state = STATE_STARTED;
     onStarted();
@@ -203,6 +212,9 @@ public abstract class BaseRenderer implements Renderer, RendererCapabilities {
 
   @Override
   public final void stop() {
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "stop() %s", this);
+
     Assertions.checkState(state == STATE_STARTED);
     state = STATE_ENABLED;
     onStopped();
@@ -210,6 +222,9 @@ public abstract class BaseRenderer implements Renderer, RendererCapabilities {
 
   @Override
   public final void disable() {
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "disable() %s", this);
+
     Assertions.checkState(state == STATE_ENABLED);
     formatHolder.clear();
     state = STATE_DISABLED;
@@ -518,13 +533,25 @@ public abstract class BaseRenderer implements Renderer, RendererCapabilities {
     int result = Assertions.checkNotNull(stream).readData(formatHolder, buffer, readFlags);
     if (result == C.RESULT_BUFFER_READ) {
       if (buffer.isEndOfStream()) {
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "readSource isEndOfStream() streamIsFinal: %s", streamIsFinal);
+
         readingPositionUs = C.TIME_END_OF_SOURCE;
         return streamIsFinal ? C.RESULT_BUFFER_READ : C.RESULT_NOTHING_READ;
       }
       buffer.timeUs += streamOffsetUs;
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE4, TAG,"readSource readingPosition: %dms bufferTime: %dms delta: %dms (%s)",
+          readingPositionUs / 1000, buffer.timeUs / 1000, (readingPositionUs - buffer.timeUs) / 1000, this);
+
       readingPositionUs = max(readingPositionUs, buffer.timeUs);
     } else if (result == C.RESULT_FORMAT_READ) {
       Format format = Assertions.checkNotNull(formatHolder.format);
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE2, TAG,"readSource buffer time: %d format: %s from stream %s (%s)", buffer.timeUs, format, stream, this);
+
       if (format.subsampleOffsetUs != Format.OFFSET_SAMPLE_RELATIVE) {
         format =
             format

@@ -70,8 +70,11 @@ import java.util.concurrent.Executor;
  * the `Looper` of the thread from which the manager must be accessed can be queried using {@link
  * #getApplicationLooper()}.
  */
+
+// MIREGO: Removed "final" as we need to override the isIdle() function to avoid stopping the
+// download service when there is downloads waiting in an external queue.
 @UnstableApi
-public final class DownloadManager {
+public class DownloadManager {
 
   /** Listener for {@link DownloadManager} events. */
   public interface Listener {
@@ -234,6 +237,9 @@ public final class DownloadManager {
    */
   public DownloadManager(
       Context context, WritableDownloadIndex downloadIndex, DownloaderFactory downloaderFactory) {
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "DownloadManager()");
+
     this.context = context.getApplicationContext();
     this.downloadIndex = downloadIndex;
 
@@ -291,6 +297,18 @@ public final class DownloadManager {
    */
   public boolean isIdle() {
     return activeTaskCount == 0 && pendingMessages == 0;
+  }
+
+  /**
+   * MIREGO ADDED FUNCTION
+   * Tell the manager to check if it is currently idle.
+   */
+  public void checkIsIdle() {
+    if (isIdle()) {
+      for (Listener listener : listeners) {
+        listener.onIdle(this);
+      }
+    }
   }
 
   /**
@@ -645,11 +663,15 @@ public final class DownloadManager {
   private void onMessageProcessed(int processedMessageCount, int activeTaskCount) {
     this.pendingMessages -= processedMessageCount;
     this.activeTaskCount = activeTaskCount;
+    // MIREGO added and commented block
+    checkIsIdle();
+    /*
     if (isIdle()) {
       for (Listener listener : listeners) {
         listener.onIdle(this);
       }
     }
+    } */
   }
 
   /* package */ static Download mergeRequest(
@@ -878,8 +900,14 @@ public final class DownloadManager {
       @Nullable Download download = getDownload(request.id, /* loadFromIndex= */ true);
       long nowMs = System.currentTimeMillis();
       if (download != null) {
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "addDownload mergeRequest");
+
         putDownload(mergeRequest(download, request, stopReason, nowMs));
       } else {
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "addDownload");
+
         putDownload(
             new Download(
                 request,
@@ -1214,9 +1242,15 @@ public final class DownloadManager {
       Assertions.checkState(download.state != STATE_COMPLETED && download.state != STATE_FAILED);
       int changedIndex = getDownloadIndex(download.request.id);
       if (changedIndex == C.INDEX_UNSET) {
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "putDownload add");
+
         downloads.add(download);
         Collections.sort(downloads, InternalHandler::compareStartTimes);
       } else {
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "putDownload update");
+
         boolean needsSort = download.startTimeMs != downloads.get(changedIndex).startTimeMs;
         downloads.set(changedIndex, download);
         if (needsSort) {
@@ -1296,6 +1330,8 @@ public final class DownloadManager {
 
     private long contentLength;
 
+    private long lastProgressLogTime = 0; // MIREGO added to log
+
     private Task(
         DownloadRequest request,
         Downloader downloader,
@@ -1340,6 +1376,9 @@ public final class DownloadManager {
           long errorPosition = C.LENGTH_UNSET;
           while (!isCanceled) {
             try {
+              // MIREGO
+              Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "downloader.download() %s", downloader);
+
               downloader.download(/* progressListener= */ this);
               break;
             } catch (IOException e) {
@@ -1372,6 +1411,13 @@ public final class DownloadManager {
     public void onProgress(long contentLength, long bytesDownloaded, float percentDownloaded) {
       downloadProgress.bytesDownloaded = bytesDownloaded;
       downloadProgress.percentDownloaded = percentDownloaded;
+
+      // MIREGO added block
+      if (System.currentTimeMillis() > lastProgressLogTime + 1000) {
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "downloader.onProgress contentLength: %d  bytesDownloaded: %d  percent: %f", contentLength, bytesDownloaded, percentDownloaded);
+        lastProgressLogTime = System.currentTimeMillis();
+      }
+
       if (contentLength != this.contentLength) {
         this.contentLength = contentLength;
         @Nullable Handler internalHandler = this.internalHandler;

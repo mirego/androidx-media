@@ -30,6 +30,7 @@ import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
 import androidx.media3.common.C;
 import androidx.media3.common.util.Clock;
+import androidx.media3.common.util.Log;
 import androidx.media3.common.util.Util;
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
@@ -161,6 +162,8 @@ import java.lang.reflect.Method;
   private static final int MAX_PLAYHEAD_OFFSET_COUNT = 10;
   private static final int MIN_PLAYHEAD_OFFSET_SAMPLE_INTERVAL_US = 30_000;
   private static final int MIN_LATENCY_SAMPLE_INTERVAL_US = 50_0000;
+
+  private static final String TAG = "AudioTrackPosTracker"; /* MIREGO */
 
   private final Listener listener;
   private final long[] playheadOffsets;
@@ -305,6 +308,10 @@ import java.lang.reflect.Method;
       elapsedSinceTimestampUs =
           Util.getMediaDurationForPlayoutDuration(elapsedSinceTimestampUs, audioTrackPlaybackSpeed);
       positionUs = timestampPositionUs + elapsedSinceTimestampUs;
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE4, TAG, "getCurrentPositionUs timestampPositionFrames: %d  timestampPositionUs: %d  elapsedSinceTimestampUs: %d  positionUs: %d  speed: %f",
+          timestampPositionFrames, timestampPositionUs, elapsedSinceTimestampUs, positionUs, audioTrackPlaybackSpeed);
     } else {
       if (playheadOffsetCount == 0) {
         // The AudioTrack has started, but we don't have any samples to compute a smoothed position.
@@ -356,6 +363,9 @@ import java.lang.reflect.Method;
     lastSystemTimeUs = systemTimeUs;
     lastPositionUs = positionUs;
     lastSampleUsedGetTimestampMode = useGetTimestampMode;
+
+    //Mirego
+    Log.v(Log.LOG_LEVEL_VERBOSE4, TAG, "getCurrentPositionUs: %d (useGetTimestampMode: %s)", positionUs, useGetTimestampMode);
 
     return positionUs;
   }
@@ -520,6 +530,8 @@ import java.lang.reflect.Method;
       for (int i = 0; i < playheadOffsetCount; i++) {
         smoothedPlayheadOffsetUs += playheadOffsets[i] / playheadOffsetCount;
       }
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE4, TAG,"maybeSampleSyncParams offset: %d us smoothed: %d us", playbackPositionUs - systemTimeUs, smoothedPlayheadOffsetUs);
     }
 
     if (needsPassthroughWorkarounds) {
@@ -546,15 +558,30 @@ import java.lang.reflect.Method;
       listener.onSystemTimeUsMismatch(
           timestampPositionFrames, timestampSystemTimeUs, systemTimeUs, playbackPositionUs);
       audioTimestampPoller.rejectTimestamp();
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG,"maybePollAndCheckTimestamp system time mismatch timestamp: %d system: %d delta %d",
+          timestampSystemTimeUs, systemTimeUs, timestampSystemTimeUs - systemTimeUs );
+
     } else if (Math.abs(
             sampleCountToDurationUs(timestampPositionFrames, outputSampleRate) - playbackPositionUs)
         > MAX_AUDIO_TIMESTAMP_OFFSET_US) {
       listener.onPositionFramesMismatch(
           timestampPositionFrames, timestampSystemTimeUs, systemTimeUs, playbackPositionUs);
       audioTimestampPoller.rejectTimestamp();
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG,"maybePollAndCheckTimestamp position frames mismatch timestamp: %d playback: %d delta: %d",
+          framesToDurationUs(timestampPositionFrames), playbackPositionUs, framesToDurationUs(timestampPositionFrames) - playbackPositionUs);
+
     } else {
       audioTimestampPoller.acceptTimestamp();
     }
+  }
+
+  // MIREGO
+  private long framesToDurationUs(long frameCount) {
+    return (frameCount * C.MICROS_PER_SECOND) / outputSampleRate;
   }
 
   private void maybeUpdateLatency(long systemTimeUs) {
@@ -687,6 +714,15 @@ import java.lang.reflect.Method;
         sumRawPlaybackHeadPosition += this.rawPlaybackHeadPosition;
         expectRawPlaybackHeadReset = false;
       } else {
+        // MIREGO: workaround issue experienced on a low performance device where the audio track reports a
+        // rawPlaybackHeadPosition of 0 for a few seconds, before getting back to normal (might be stopped in native, but java layer lagging)
+        // we have to avoid incrementing the rawPlaybackHeadWrapCount, otherwise all the remaining timestamps will get rejected.
+        // If after 4GBs of data, we happen to wrap exactly at the position 0, then it will take a few more seconds before getting
+        // a timestamp update, which has no impact
+        if (rawPlaybackHeadPosition == 0) {
+          return;
+        }
+
         // The value must have wrapped around.
         rawPlaybackHeadWrapCount++;
       }

@@ -15,6 +15,7 @@
  */
 package androidx.media3.exoplayer.mediacodec;
 
+import static androidx.media3.common.util.Util.shouldIgnoreCodecFpsLimitForResolution;
 import static androidx.media3.exoplayer.DecoderReuseEvaluation.DISCARD_REASON_AUDIO_CHANNEL_COUNT_CHANGED;
 import static androidx.media3.exoplayer.DecoderReuseEvaluation.DISCARD_REASON_AUDIO_ENCODING_CHANGED;
 import static androidx.media3.exoplayer.DecoderReuseEvaluation.DISCARD_REASON_AUDIO_SAMPLE_RATE_CHANGED;
@@ -254,10 +255,16 @@ public final class MediaCodecInfo {
    */
   public boolean isFormatSupported(Format format) throws MediaCodecUtil.DecoderQueryException {
     if (!isSampleMimeTypeSupported(format)) {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "%s doesn't support format %s sample mime type", name, format);
+
       return false;
     }
 
     if (!isCodecProfileAndLevelSupported(format, /* checkPerformanceCapabilities= */ true)) {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "%s doesn't support format %s (profile and level)", name, format);
+
       return false;
     }
 
@@ -266,11 +273,20 @@ public final class MediaCodecInfo {
         return true;
       }
       if (Util.SDK_INT >= 21) {
-        return isVideoSizeAndRateSupportedV21(format.width, format.height, format.frameRate);
+        // MIREGO START
+        if (!isVideoSizeAndRateSupportedV21(format.width, format.height, format.frameRate)) {
+          Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "%s doesn't support format %s (size and rate)", name, format);
+          return false;
+        }
+        return true;
+        // MIREGO END
       } else {
         boolean isFormatSupported =
             format.width * format.height <= MediaCodecUtil.maxH264DecodableFrameSize();
         if (!isFormatSupported) {
+          // MIREGO
+          Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "%s doesn't support format %s (size and rate maxH264DecodableFrameSize)", name, format);
+
           logNoSupport("legacyFrameSize, " + format.width + "x" + format.height);
         }
         return isFormatSupported;
@@ -528,6 +544,10 @@ public final class MediaCodecInfo {
         return true;
       } else if (evaluation == COVERAGE_RESULT_NO) {
         logNoSupport("sizeAndRate.cover, " + width + "x" + height + "@" + frameRate);
+
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "%s doesn't support video %d x %d at %f (COVERAGE_RESULT_NO)", name, width, height, frameRate);
+
         return false;
       }
       // If COVERAGE_RESULT_NO_PERFORMANCE_POINTS_UNSUPPORTED then logic falls through
@@ -535,6 +555,9 @@ public final class MediaCodecInfo {
     }
 
     if (!areSizeAndRateSupportedV21(videoCapabilities, width, height, frameRate)) {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "%s doesn't support video %d x %d at %f (areSizeAndRateSupportedV21 false)", name, width, height, frameRate);
+
       if (width >= height
           || !needsRotatedVerticalResolutionWorkaround(name)
           || !areSizeAndRateSupportedV21(videoCapabilities, height, width, frameRate)) {
@@ -731,14 +754,23 @@ public final class MediaCodecInfo {
 
     // VideoCapabilities.areSizeAndRateSupported incorrectly returns false if frameRate < 1 on some
     // versions of Android, so we only check the size in this case [Internal ref: b/153940404].
-    if (frameRate == Format.NO_VALUE || frameRate < 1) {
+    if (frameRate == Format.NO_VALUE || frameRate < 1 || shouldIgnoreCodecFpsLimitForResolution) {
       return capabilities.isSizeSupported(width, height);
     } else {
       // The signaled frame rate may be slightly higher than the actual frame rate, so we take the
       // floor to avoid situations where a range check in areSizeAndRateSupported fails due to
       // slightly exceeding the limits for a standard format (e.g., 1080p at 30 fps).
       double floorFrameRate = Math.floor(frameRate);
-      return capabilities.areSizeAndRateSupported(width, height, floorFrameRate);
+
+      // MIREGO START
+      boolean supported = capabilities.areSizeAndRateSupported(width, height, floorFrameRate);
+      if (!supported) {
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "areSizeAndRateSupportedV21 returns false for %d x %d at %f", width, height, floorFrameRate);
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "isSizeSupported: %s  achievable rate: %s  supported frame rates: %s",
+            capabilities.isSizeSupported(width, height), capabilities.getAchievableFrameRatesFor(width, height), capabilities.getSupportedFrameRates());
+      }
+      return supported;
+      // MIREGO END
     }
   }
 

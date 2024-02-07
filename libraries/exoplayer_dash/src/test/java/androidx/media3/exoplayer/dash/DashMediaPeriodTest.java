@@ -225,7 +225,8 @@ public final class DashMediaPeriodTest {
         mock(CompositeSequenceableLoaderFactory.class),
         mock(PlayerEmsgCallback.class),
         PlayerId.UNSET,
-        /* subtitleParserFactory= */ null);
+        /* subtitleParserFactory= */ null,
+        false);
   }
 
   private static DashManifest parseManifest(String fileName) throws IOException {

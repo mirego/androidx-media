@@ -393,6 +393,9 @@ public class DefaultHttpDataSource extends BaseDataSource implements HttpDataSou
     bytesToRead = 0;
     transferInitializing(dataSpec);
 
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "open dataSource: %s", dataSpec.uri);
+
     String responseMessage;
     HttpURLConnection connection;
     try {
@@ -402,8 +405,12 @@ public class DefaultHttpDataSource extends BaseDataSource implements HttpDataSou
       responseMessage = connection.getResponseMessage();
     } catch (IOException e) {
       closeConnectionQuietly();
-      throw HttpDataSourceException.createForIOException(
+      // MIREGO START
+      HttpDataSourceException ioException = HttpDataSourceException.createForIOException(
           e, dataSpec, HttpDataSourceException.TYPE_OPEN);
+      Log.e(TAG, "open() ", ioException);
+      throw ioException;
+      // MIREGO END
     }
 
     // Check for a valid response code.
@@ -428,13 +435,17 @@ public class DefaultHttpDataSource extends BaseDataSource implements HttpDataSou
         errorResponseBody = Util.EMPTY_BYTE_ARRAY;
       }
       closeConnectionQuietly();
+
       @Nullable
       IOException cause =
           responseCode == 416
               ? new DataSourceException(PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE)
               : null;
-      throw new InvalidResponseCodeException(
+      HttpDataSourceException e = new InvalidResponseCodeException(
           responseCode, responseMessage, cause, headers, dataSpec, errorResponseBody);
+
+      Log.e(TAG, e); // MIREGO added
+      throw e;
     }
 
     // Check for a valid content type.
@@ -510,8 +521,12 @@ public class DefaultHttpDataSource extends BaseDataSource implements HttpDataSou
     try {
       return readInternal(buffer, offset, length);
     } catch (IOException e) {
-      throw HttpDataSourceException.createForIOException(
+      // MIREGO START
+      HttpDataSourceException ioException = HttpDataSourceException.createForIOException(
           e, castNonNull(dataSpec), HttpDataSourceException.TYPE_READ);
+      Log.e(TAG, "read() ", ioException);
+      throw ioException;
+      // MIREGO END
     }
   }
 
