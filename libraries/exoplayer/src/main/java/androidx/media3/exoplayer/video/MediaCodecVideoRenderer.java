@@ -1508,7 +1508,8 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
             (systemTimeUs - lastRender) / 1000, skipCount, earlyUs);
         if ( (timeSinceLastRender > Util.timeSinceLastVideoRenderToLogErrorMs * 1000) && !hasNotifiedAvDesyncSkippedFramesError) {
           hasNotifiedAvDesyncSkippedFramesError = true;
-          Log.e(TAG, new PlaybackException("AV desync: skipped video frames for more than 500 ms", new RuntimeException(), PlaybackException.ERROR_CODE_AUDIO_VIDEO_DESYNC));
+          // MIREGO: Deactivate the error for now, too many false positives
+          // Log.e(TAG, new PlaybackException("AV desync: skipped video frames for more than 500 ms", new RuntimeException(), PlaybackException.ERROR_CODE_AUDIO_VIDEO_DESYNC));
         }
       }
     }
