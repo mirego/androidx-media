@@ -2286,7 +2286,7 @@ public final class DefaultAudioSink implements AudioSink {
 
     // MIREGO - AMZN_CHANGE_BEGIN
     public boolean applyDolbyPassthroughQuirk() {
-      return ( outputMode != OUTPUT_MODE_PCM  && isLegacyPassthroughQuirkEnabled);
+      return (outputMode != OUTPUT_MODE_PCM && isLegacyPassthroughQuirkEnabled);
     }
     // MIREGO - AMZN_CHANGE_END
 

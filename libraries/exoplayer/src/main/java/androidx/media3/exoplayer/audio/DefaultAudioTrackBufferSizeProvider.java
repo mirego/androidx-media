@@ -220,8 +220,8 @@ public class DefaultAudioTrackBufferSizeProvider
     // Buffer size must not be lower than the AudioTrack min buffer size for this format.
     bufferSize = max(minBufferSizeInBytes, bufferSize);
     // Increase if needed to make sure the buffers contains an integer number of frames.
-    // MIREGO - AMZN_CHANGE_START
-    if(pcmFrameSize > 0){
+    // MIREGO - AMZN_CHANGE_BEGIN
+    if (pcmFrameSize > 0) {
       bufferSize = (bufferSize + pcmFrameSize - 1) / pcmFrameSize * pcmFrameSize;
     }
     return bufferSize;

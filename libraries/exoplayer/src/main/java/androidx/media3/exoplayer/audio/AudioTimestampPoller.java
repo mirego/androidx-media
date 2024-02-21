@@ -133,7 +133,7 @@ import java.lang.annotation.Target;
    * @param systemTimeUs The current system time, in microseconds.
    * @return Whether the timestamp was updated.
    */
-  @TargetApi(19)
+  @TargetApi(19) // audioTimestamp will be null if Util.SDK_INT < 19.
   public boolean maybePollTimestamp(long systemTimeUs, boolean applyDolbyPassthroughQuirk) {
     if (!applyDolbyPassthroughQuirk
         && (audioTimestamp == null || (systemTimeUs - lastTimestampSampleTimeUs) < sampleIntervalUs)) {

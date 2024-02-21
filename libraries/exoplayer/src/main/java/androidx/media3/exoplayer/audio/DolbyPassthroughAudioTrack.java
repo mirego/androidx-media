@@ -66,6 +66,7 @@ public final class DolbyPassthroughAudioTrack extends AudioTrack {
     super(attributes, format, bufferSizeInBytes, mode, sessionId);
     initialize();
   }
+
   public DolbyPassthroughAudioTrack(int streamType, int sampleRateInHz,
       int channelConfig, int audioFormat,
       int bufferSizeInBytes, int mode)
@@ -84,7 +85,7 @@ public final class DolbyPassthroughAudioTrack extends AudioTrack {
   }
 
   private void initialize() {
-    Log.i( TAG, "initialize" );
+    Log.i(TAG, "initialize");
     trackHandlerGate = new ConditionVariable(true);
     trackHandlerThread = new HandlerThread(TRACK_HANDLER_THREAD_NAME);
     pendingWriteSem = new Semaphore(BUFFER_COUNT);
@@ -96,7 +97,7 @@ public final class DolbyPassthroughAudioTrack extends AudioTrack {
      */
     trackHandler = new Handler(trackHandlerThread.getLooper()) {
       public void handleMessage(Message msg) {
-        switch(msg.what) {
+        switch (msg.what) {
           case MSG_WRITE_TO_TRACK: {
             int size = msg.arg1;
             int bufferIndex = msg.arg2;

@@ -306,7 +306,7 @@ import java.lang.reflect.Method;
     long positionUs;
     AudioTimestampPoller audioTimestampPoller = checkNotNull(this.audioTimestampPoller);
     boolean useGetTimestampMode = audioTimestampPoller.hasAdvancingTimestamp();
-    // MIREGO - AMZN_CHANGE_START
+    // MIREGO - AMZN_CHANGE_BEGIN
     // for dolby passthrough case, we just depend on getTimeStamp API
     // for audio video synchronization.
     if (applyDolbyPassThroughQuirk) {

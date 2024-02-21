@@ -404,7 +404,7 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
     if (format.sampleMimeType == null) {
       return ImmutableList.of();
     }
-    if (audioSink.supportsFormat(format) && AmazonQuirks.useDefaultPassthroughDecoder()) { // MIREGO - AMZN_CHANGE_ONELINE) {
+    if (audioSink.supportsFormat(format) && AmazonQuirks.useDefaultPassthroughDecoder()) { // MIREGO - AMZN_CHANGE_ONELINE
       // The format is supported directly, so a codec is only needed for decryption.
       @Nullable MediaCodecInfo codecInfo = MediaCodecUtil.getDecryptOnlyDecoderInfo();
       if (codecInfo != null) {
