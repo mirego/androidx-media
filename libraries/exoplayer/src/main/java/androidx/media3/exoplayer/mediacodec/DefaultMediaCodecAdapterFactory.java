@@ -17,6 +17,7 @@ package androidx.media3.exoplayer.mediacodec;
 
 import static java.lang.annotation.ElementType.TYPE_USE;
 
+import android.content.Context;
 import androidx.annotation.IntDef;
 import androidx.media3.common.MimeTypes;
 import androidx.media3.common.util.Log;
@@ -53,12 +54,20 @@ public final class DefaultMediaCodecAdapterFactory implements MediaCodecAdapter.
 
   private static final String TAG = "DMCodecAdapterFactory";
 
+  private final Context context; // MIREGO - AMZN_CHANGE_ONELINE
   private @Mode int asynchronousMode;
   private boolean enableSynchronizeCodecInteractionsWithQueueing;
 
+  // MIREGO - AMZN_CHANGE_BEGIN
   public DefaultMediaCodecAdapterFactory() {
+    this(null);
+  }
+
+  public DefaultMediaCodecAdapterFactory(Context context) {
+    this.context = context;
     asynchronousMode = MODE_DEFAULT;
   }
+  // MIREGO - AMZN_CHANGE_END
 
   /**
    * Forces this factory to always create {@link AsynchronousMediaCodecAdapter} instances, provided
@@ -99,9 +108,17 @@ public final class DefaultMediaCodecAdapterFactory implements MediaCodecAdapter.
   @Override
   public MediaCodecAdapter createAdapter(MediaCodecAdapter.Configuration configuration)
       throws IOException {
+    // MIREGO - AMZN_CHANGE_BEGIN
+    boolean isFireTvSmart = false;
+    if(context != null) {
+      isFireTvSmart = context.getPackageManager().hasSystemFeature("com.amazon.hardware.tv_screen");
+    }
+
     if (Util.SDK_INT >= 23
         && (asynchronousMode == MODE_ENABLED
-            || (asynchronousMode == MODE_DEFAULT && Util.SDK_INT >= 31))) {
+            || (asynchronousMode == MODE_DEFAULT && Util.SDK_INT >= 31)
+            || (asynchronousMode == MODE_DEFAULT && isFireTvSmart && Util.SDK_INT >= 28))) {
+      // MIREGO - AMZN_CHANGE_END
       int trackType = MimeTypes.getTrackType(configuration.format.sampleMimeType);
       Log.i(
           TAG,
