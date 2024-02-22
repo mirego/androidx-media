@@ -59,6 +59,10 @@ public final class AudioCapabilitiesReceiver {
   @Nullable private final BroadcastReceiver hdmiAudioPlugBroadcastReceiver;
   @Nullable private final ExternalSurroundSoundSettingObserver externalSurroundSoundSettingObserver;
 
+  // MIREGO - AMZN_CHANGE_BEGIN
+  @Nullable private final ContentResolver resolver;
+  // MIREGO - AMZN_CHANGE_END
+
   @Nullable /* package */ AudioCapabilities audioCapabilities;
   private boolean registered;
 
@@ -72,14 +76,28 @@ public final class AudioCapabilitiesReceiver {
     this.listener = checkNotNull(listener);
     handler = Util.createHandlerForCurrentOrMainLooper();
     audioDeviceCallback = Util.SDK_INT >= 23 ? new AudioDeviceCallbackV23() : null;
-    hdmiAudioPlugBroadcastReceiver =
-        Util.SDK_INT >= 21 ? new HdmiAudioPlugBroadcastReceiver() : null;
     Uri externalSurroundSoundUri = AudioCapabilities.getExternalSurroundSoundGlobalSettingUri();
     externalSurroundSoundSettingObserver =
         externalSurroundSoundUri != null
             ? new ExternalSurroundSoundSettingObserver(
                 handler, context.getContentResolver(), externalSurroundSoundUri)
             : null;
+
+    // MIREGO - AMZN_CHANGE_BEGIN
+    boolean useSurroundSoundFlag = false;
+    if (Util.SDK_INT >= 17) {
+      this.resolver = context.getContentResolver();
+      useSurroundSoundFlag = AudioCapabilities.useSurroundSoundFlagV17(
+          resolver);
+    } else {
+      this.resolver = null;
+    }
+    // Don't listen for audio plug encodings if useSurroundSoundFlag is set.
+    // If useSurroundSoundFlag is set then the platform controls what the
+    // audio output is by using the iSurroundSoundEnabled setting.
+    this.hdmiAudioPlugBroadcastReceiver = (Util.SDK_INT >= 21 && !useSurroundSoundFlag) ?
+        new HdmiAudioPlugBroadcastReceiver() : null;
+    // MIREGO - AMZN_CHANGE_END
   }
 
   /**
@@ -175,6 +193,7 @@ public final class AudioCapabilitiesReceiver {
 
     @Override
     public void onChange(boolean selfChange) {
+      super.onChange(selfChange); // MIREGO - AMZN_CHANGE_ONELINE
       onNewAudioCapabilities(AudioCapabilities.getCapabilities(context));
     }
   }
