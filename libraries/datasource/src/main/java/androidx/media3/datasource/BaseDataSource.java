@@ -50,6 +50,7 @@ public abstract class BaseDataSource implements DataSource {
 
   @UnstableApi
   @Override
+  // MIREGO: removed final
   public void addTransferListener(TransferListener transferListener) {
     checkNotNull(transferListener);
     if (!listeners.contains(transferListener)) {
