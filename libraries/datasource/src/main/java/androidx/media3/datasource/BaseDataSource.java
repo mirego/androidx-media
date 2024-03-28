@@ -50,7 +50,7 @@ public abstract class BaseDataSource implements DataSource {
 
   @UnstableApi
   @Override
-  public final void addTransferListener(TransferListener transferListener) {
+  public void addTransferListener(TransferListener transferListener) {
     checkNotNull(transferListener);
     if (!listeners.contains(transferListener)) {
       listeners.add(transferListener);
