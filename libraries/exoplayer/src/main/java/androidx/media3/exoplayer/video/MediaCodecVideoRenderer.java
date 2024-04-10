@@ -1491,12 +1491,6 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
         dropOutputBuffer(codec, bufferIndex, presentationTimeUs);
       }
       updateVideoFrameProcessingOffsetCounters(earlyUs);
-
-      // MIREGO BEGIN
-      skipCount = 0;
-      lastRender = systemTimeNs / 1000;
-      // MIREGO END
-
       return true;
     } else if (lastRender != 0){ // MIREGO ADDED else block
       skipCount++;
@@ -1547,6 +1541,12 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
           renderOutputBufferV21(codec, bufferIndex, presentationTimeUs, adjustedReleaseTimeNs);
         }
         updateVideoFrameProcessingOffsetCounters(earlyUs);
+
+        // MIREGO BEGIN
+        skipCount = 0;
+        lastRender = systemTimeNs / 1000;
+        // MIREGO END
+        
         lastFrameReleaseTimeNs = adjustedReleaseTimeNs;
         return true;
       }
