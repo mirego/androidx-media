@@ -21,6 +21,8 @@ import android.os.SystemClock;
 import androidx.annotation.GuardedBy;
 import androidx.annotation.Nullable;
 import androidx.media3.common.C;
+import androidx.media3.common.PlaybackException;
+import androidx.media3.common.util.Log;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.upstream.Loader;
 import androidx.media3.exoplayer.upstream.Loader.LoadErrorAction;
@@ -28,6 +30,7 @@ import androidx.media3.exoplayer.upstream.Loader.Loadable;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.SocketTimeoutException;
 import java.util.Arrays;
@@ -45,6 +48,8 @@ public final class SntpClient {
 
   /** The default NTP host address used to retrieve {@link #getElapsedRealtimeOffsetMs()}. */
   public static final String DEFAULT_NTP_HOST = "time.android.com";
+
+  private static final String TAG = "SntpClient"; /* MIREGO */
 
   /** The default maximum time, in milliseconds, to wait for the SNTP request to complete. */
   public static final int DEFAULT_TIMEOUT_MS = 1_000;
@@ -229,7 +234,7 @@ public final class SntpClient {
 
       int retryCount = 0;
       SocketTimeoutException timeoutException = null;
-      InetAddress[] addresses = InetAddress.getAllByName(getNtpHost());
+      InetAddress[] addresses = Inet4Address.getAllByName(getNtpHost()); // MIREGO: force ipv4 to workaround a network issue
       for (InetAddress address : addresses) {
         byte[] buffer = new byte[NTP_PACKET_SIZE];
         DatagramPacket request = new DatagramPacket(buffer, buffer.length, address, NTP_PORT);
@@ -296,6 +301,9 @@ public final class SntpClient {
       }
       // If no response is received from any of the addresses, throw an exception.
       throw checkNotNull(timeoutException);
+    } catch (Exception e) { // MIREGO: added catch for error reporting
+      Log.e(TAG, new PlaybackException("loadNtpTimeOffsetMs error", e, PlaybackException.ERROR_CODE_NTP));
+      throw(e);
     }
   }
 
