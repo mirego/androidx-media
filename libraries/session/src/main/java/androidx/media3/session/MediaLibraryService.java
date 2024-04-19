@@ -414,6 +414,19 @@ public abstract class MediaLibraryService extends MediaSessionService {
       }
 
       /**
+       * Creates a builder for {@link MediaLibrarySession}.
+       *
+       * @param context The {@link Context}.
+       * @param player The underlying player to perform playback and handle transport controls.
+       * @param callback The callback to handle requests from {@link MediaBrowser}.
+       * @throws IllegalArgumentException if {@link Player#canAdvertiseSession()} returns false.
+       */
+      @UnstableApi
+      public Builder(Context context, Player player, Callback callback) {
+        super(context, player, callback);
+      }
+
+      /**
        * Sets a {@link PendingIntent} to launch an {@link android.app.Activity} for the {@link
        * MediaLibrarySession}. This can be used as a quick link to an ongoing media screen.
        *
@@ -836,10 +849,19 @@ public abstract class MediaLibraryService extends MediaSessionService {
       return bundle;
     }
 
-    /** Object that can restore {@link LibraryParams} from a {@link Bundle}. */
-    @UnstableApi public static final Creator<LibraryParams> CREATOR = LibraryParams::fromBundle;
+    /**
+     * Object that can restore {@link LibraryParams} from a {@link Bundle}.
+     *
+     * @deprecated Use {@link #fromBundle} instead.
+     */
+    @UnstableApi
+    @Deprecated
+    @SuppressWarnings("deprecation") // Deprecated instance of deprecated class
+    public static final Creator<LibraryParams> CREATOR = LibraryParams::fromBundle;
 
-    private static LibraryParams fromBundle(Bundle bundle) {
+    /** Restores a {@code LibraryParams} from a {@link Bundle}. */
+    @UnstableApi
+    public static LibraryParams fromBundle(Bundle bundle) {
       @Nullable Bundle extras = bundle.getBundle(FIELD_EXTRAS);
       boolean recent = bundle.getBoolean(FIELD_RECENT, /* defaultValue= */ false);
       boolean offline = bundle.getBoolean(FIELD_OFFLINE, /* defaultValue= */ false);

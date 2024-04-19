@@ -18,7 +18,9 @@ package androidx.media3.exoplayer.mediacodec;
 import static java.lang.annotation.ElementType.TYPE_USE;
 
 import android.content.Context;
+import android.media.MediaCodec;
 import androidx.annotation.IntDef;
+import androidx.annotation.Nullable;
 import androidx.media3.common.MimeTypes;
 import androidx.media3.common.util.Log;
 import androidx.media3.common.util.UnstableApi;
@@ -54,18 +56,27 @@ public final class DefaultMediaCodecAdapterFactory implements MediaCodecAdapter.
 
   private static final String TAG = "DMCodecAdapterFactory";
 
-  private final Context context; // MIREGO - AMZN_CHANGE_ONELINE
+  @Nullable private final Context context;
   private @Mode int asynchronousMode;
-  private boolean enableSynchronizeCodecInteractionsWithQueueing;
+  private boolean asyncCryptoFlagEnabled;
 
-  // MIREGO - AMZN_CHANGE_BEGIN
+  /**
+   * @deprecated Use {@link #DefaultMediaCodecAdapterFactory(Context)} instead.
+   */
+  @Deprecated
   public DefaultMediaCodecAdapterFactory() {
     this(null);
   }
 
+  /**
+   * Creates the default media codec adapter factory.
+   *
+   * @param context A {@link Context}.
+   */
   public DefaultMediaCodecAdapterFactory(Context context) {
     this.context = context;
     asynchronousMode = MODE_DEFAULT;
+    asyncCryptoFlagEnabled = true;
   }
   // MIREGO - AMZN_CHANGE_END
 
@@ -94,15 +105,17 @@ public final class DefaultMediaCodecAdapterFactory implements MediaCodecAdapter.
   }
 
   /**
-   * Enable synchronizing codec interactions with asynchronous buffer queueing.
+   * Sets whether to enable {@link MediaCodec#CONFIGURE_FLAG_USE_CRYPTO_ASYNC} on API 34 and above
+   * for {@link AsynchronousMediaCodecAdapter} instances.
    *
-   * <p>This method is experimental, and will be renamed or removed in a future release.
-   *
-   * @param enabled Whether codec interactions will be synchronized with asynchronous buffer
-   *     queueing.
+   * <p>This method is experimental. Its default value may change, or it may be renamed or removed
+   * in a future release.
    */
-  public void experimentalSetSynchronizeCodecInteractionsWithQueueingEnabled(boolean enabled) {
-    enableSynchronizeCodecInteractionsWithQueueing = enabled;
+  @CanIgnoreReturnValue
+  public DefaultMediaCodecAdapterFactory experimentalSetAsyncCryptoFlagEnabled(
+      boolean enableAsyncCryptoFlag) {
+    asyncCryptoFlagEnabled = enableAsyncCryptoFlag;
+    return this;
   }
 
   @Override
@@ -117,18 +130,33 @@ public final class DefaultMediaCodecAdapterFactory implements MediaCodecAdapter.
     if (Util.SDK_INT >= 23
         && (asynchronousMode == MODE_ENABLED
             || (asynchronousMode == MODE_DEFAULT && Util.SDK_INT >= 31)
-            || (asynchronousMode == MODE_DEFAULT && isFireTvSmart && Util.SDK_INT >= 28))) {
-      // MIREGO - AMZN_CHANGE_END
+            || (asynchronousMode == MODE_DEFAULT && isFireTvSmart && Util.SDK_INT >= 28)
+            || (asynchronousMode == MODE_DEFAULT && shouldUseAsynchronousAdapterInDefaultMode()))) {
       int trackType = MimeTypes.getTrackType(configuration.format.sampleMimeType);
       Log.i(
           TAG,
           "Creating an asynchronous MediaCodec adapter for track type "
               + Util.getTrackTypeString(trackType));
       AsynchronousMediaCodecAdapter.Factory factory =
-          new AsynchronousMediaCodecAdapter.Factory(
-              trackType, enableSynchronizeCodecInteractionsWithQueueing);
+          new AsynchronousMediaCodecAdapter.Factory(trackType);
+      factory.experimentalSetAsyncCryptoFlagEnabled(asyncCryptoFlagEnabled);
       return factory.createAdapter(configuration);
     }
     return new SynchronousMediaCodecAdapter.Factory().createAdapter(configuration);
+  }
+
+  private boolean shouldUseAsynchronousAdapterInDefaultMode() {
+    if (Util.SDK_INT >= 31) {
+      // Asynchronous codec interactions started to be reliable for all devices on API 31+.
+      return true;
+    }
+    // Allow additional devices that work reliably with the asynchronous adapter and show
+    // performance problems when not using it.
+    if (context != null
+        && Util.SDK_INT >= 28
+        && context.getPackageManager().hasSystemFeature("com.amazon.hardware.tv_screen")) {
+      return true;
+    }
+    return false;
   }
 }

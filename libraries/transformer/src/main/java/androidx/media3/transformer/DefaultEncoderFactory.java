@@ -48,6 +48,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
 // TODO(b/224949986) Split audio and video encoder factory.
 @UnstableApi
 public final class DefaultEncoderFactory implements Codec.EncoderFactory {
+  private static final int DEFAULT_AUDIO_BITRATE = 128 * 1024;
   private static final int DEFAULT_FRAME_RATE = 30;
 
   /** Best effort, or as-fast-as-possible priority setting for {@link MediaFormat#KEY_PRIORITY}. */
@@ -174,9 +175,11 @@ public final class DefaultEncoderFactory implements Codec.EncoderFactory {
 
   @Override
   public DefaultCodec createForAudioEncoding(Format format) throws ExportException {
+    if (format.bitrate == Format.NO_VALUE) {
+      format = format.buildUpon().setAverageBitrate(DEFAULT_AUDIO_BITRATE).build();
+    }
     checkNotNull(format.sampleMimeType);
     MediaFormat mediaFormat = createMediaFormatFromFormat(format);
-    @Nullable
     ImmutableList<MediaCodecInfo> mediaCodecInfos =
         EncoderUtil.getSupportedEncoders(format.sampleMimeType);
     if (mediaCodecInfos.isEmpty()) {
@@ -538,7 +541,7 @@ public final class DefaultEncoderFactory implements Codec.EncoderFactory {
 
   /**
    * Applying suggested profile/level settings from
-   * https://developer.android.com/guide/topics/media/sharing-video#b-frames_and_encoding_profiles
+   * https://developer.android.com/media/optimize/sharing#b-frames_and_encoding_profiles
    *
    * <p>The adjustment is applied in-place to {@code mediaFormat}.
    */
@@ -567,7 +570,7 @@ public final class DefaultEncoderFactory implements Codec.EncoderFactory {
         mediaFormat.setInteger(MediaFormat.KEY_PROFILE, expectedEncodingProfile);
         mediaFormat.setInteger(MediaFormat.KEY_LEVEL, supportedEncodingLevel);
       }
-    } else if (Util.SDK_INT >= 26) {
+    } else if (Util.SDK_INT >= 26 && !deviceNeedsNoH264HighProfileWorkaround()) {
       int expectedEncodingProfile = MediaCodecInfo.CodecProfileLevel.AVCProfileHigh;
       int supportedEncodingLevel =
           EncoderUtil.findHighestSupportedEncodingLevel(
@@ -578,8 +581,8 @@ public final class DefaultEncoderFactory implements Codec.EncoderFactory {
         // system versions.
         mediaFormat.setInteger(MediaFormat.KEY_PROFILE, expectedEncodingProfile);
         mediaFormat.setInteger(MediaFormat.KEY_LEVEL, supportedEncodingLevel);
-        // TODO(b/210593256): Set KEY_LATENCY to 2 to enable B-frame production after switching to
-        // in-app muxing.
+        // TODO(b/210593256): Set KEY_LATENCY to 2 to enable B-frame production after in-app muxing
+        // is the default and it supports B-frames.
         mediaFormat.setInteger(MediaFormat.KEY_LATENCY, 1);
       }
     } else if (Util.SDK_INT >= 24) {
@@ -674,5 +677,12 @@ public final class DefaultEncoderFactory implements Codec.EncoderFactory {
   private static boolean deviceNeedsDefaultFrameRateWorkaround() {
     // Redmi Note 9 Pro fails if KEY_FRAME_RATE is set too high (see b/278076311).
     return SDK_INT < 30 && Util.DEVICE.equals("joyeuse");
+  }
+
+  private static boolean deviceNeedsNoH264HighProfileWorkaround() {
+    // The H.264/AVC encoder produces B-frames when high profile is chosen despite configuration to
+    // turn them off, so force not using high profile on these devices (see b/306617392).
+    // TODO(b/229420356): Remove once the in-app muxer is the default and B-frames are supported.
+    return Util.SDK_INT == 27 && (Util.DEVICE.equals("ASUS_X00T_3") || Util.DEVICE.equals("TC77"));
   }
 }
