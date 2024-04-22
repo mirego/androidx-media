@@ -181,8 +181,6 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
   @Nullable private VideoSink videoSink;
 
   // MIREGO added block
-  private int skipCount = 0;
-  private long lastRender = 0;
   private long elapsedRealtimeNowUsPrev = 0;
   private long elapsedRealtimeUsPrev = 0;
   private long positionUsPrev = 0;
@@ -736,7 +734,6 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
     hasNotifiedAvDesyncError = false;
     hasNotifiedAvDesyncSkippedFramesError = false;
     queuedFrames = 0;
-    lastRender = 0;
 
     videoFrameReleaseControl.onStarted();
   }
@@ -1475,16 +1472,44 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
       case VideoFrameReleaseControl.FRAME_RELEASE_TRY_AGAIN_LATER:
         return false;
       case VideoFrameReleaseControl.FRAME_RELEASE_SCHEDULED:
-        return maybeReleaseFrame(checkStateNotNull(codec), bufferIndex, presentationTimeUs, format);
+        return maybeReleaseFrame(checkStateNotNull(codec), bufferIndex, presentationTimeUs, format, bufferPresentationTimeUs, positionUs);
       default:
         throw new IllegalStateException(String.valueOf(frameReleaseAction));
     }
   }
 
   private boolean maybeReleaseFrame(
-      MediaCodecAdapter codec, int bufferIndex, long presentationTimeUs, Format format) {
+      MediaCodecAdapter codec,
+      int bufferIndex,
+      long presentationTimeUs,
+      Format format,
+      long bufferPresentationTimeUs, // MIREGO added
+      long positionUs // MIREGO added
+  ) {
     long releaseTimeNs = videoFrameReleaseInfo.getReleaseTimeNs();
     long earlyUs = videoFrameReleaseInfo.getEarlyUs();
+
+    long systemTimeNs = getClock().nanoTime();
+    long unadjustedFrameReleaseTimeNs = systemTimeNs + (earlyUs * 1000);
+
+    // MIREGO START
+    if ( (earlyUs < -Util.audioVideoDeltaToLogErrorMs * 1000 || earlyUs > Util.audioVideoDeltaToLogErrorMs * 1000) && !hasNotifiedAvDesyncError) {
+      Log.e(TAG, new PlaybackException("AV desync: video is offset by " + (earlyUs / 1000) + " ms",
+          new RuntimeException(), PlaybackException.ERROR_CODE_AUDIO_VIDEO_DESYNC));
+      hasNotifiedAvDesyncError = true;
+    }
+    int logLevel;
+    long timeMs = System.currentTimeMillis();
+    if (timeMs > lastLogProcessOutputBufferMs + 1000) {
+      logLevel = Log.LOG_LEVEL_VERBOSE1;
+      lastLogProcessOutputBufferMs = timeMs;
+    } else {
+      logLevel = Log.LOG_LEVEL_VERBOSE3;
+    }
+    Log.v(logLevel, TAG, "processOutputBuffer unadjustedFrameReleaseTimeUs: %d  bufferPresentationTimeUs: %d  positionUs: %d  earlyUs %d  playbackSpeed: %f",
+        unadjustedFrameReleaseTimeNs / 1000, bufferPresentationTimeUs, positionUs, earlyUs, getPlaybackSpeed());
+    // END MIREGO
+
     if (Util.SDK_INT >= 21) {
       // Let the underlying framework time the release.
       if (shouldSkipBuffersWithIdenticalReleaseTime() && releaseTimeNs == lastFrameReleaseTimeNs) {
