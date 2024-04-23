@@ -169,7 +169,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
   private boolean haveReportedFirstFrameRenderedForCurrentSurface;
   private @C.VideoScalingMode int scalingMode;
   private @C.VideoChangeFrameRateStrategy int changeFrameRateStrategy;
+
   private boolean readyToRenderFirstFrameAfterReset;  // MIREGO added
+
   private long droppedFrameAccumulationStartTimeMs;
   private int droppedFrames;
   private int consecutiveDroppedFrameCount;
@@ -190,8 +192,6 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
   private boolean pendingVideoSinkInputStreamChange;
 
   // MIREGO added block
-  private int skipCount = 0;
-  private long lastRender = 0;
   private long elapsedRealtimeNowUsPrev = 0;
   private long elapsedRealtimeUsPrev = 0;
   private long positionUsPrev = 0;
@@ -869,7 +869,11 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
     if (videoSink != null) {
       return videoSink.isReady(rendererOtherwiseReady);
     }
-    if (rendererOtherwiseReady && (getCodec() == null || displaySurface == null || tunneling)) {
+    if (rendererOtherwiseReady
+        && (readyToRenderFirstFrameAfterReset  // MIREGO added
+        || getCodec() == null
+        || displaySurface == null
+        || tunneling)) {
       // Not releasing frames.
       return true;
     }
@@ -899,8 +903,8 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
     hasNotifiedAvDesyncError = false;
     hasNotifiedAvDesyncSkippedFramesError = false;
     queuedFrames = 0;
-    droppedFrameAccumulationStartTimeMs = SystemClock.elapsedRealtime();
-    lastRender = 0;
+
+    videoFrameReleaseControl.onStarted();
   }
 
   @Override
@@ -1228,8 +1232,8 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
       case MimeTypes.VIDEO_H264:
         if ("BRAVIA 4K 2015".equals(Util.MODEL) // Sony Bravia 4K
             || ("Amazon".equals(Util.MANUFACTURER)
-                && ("KFSOWI".equals(Util.MODEL) // Kindle Soho
-                    || ("AFTS".equals(Util.MODEL) && codecInfo.secure)))) { // Fire TV Gen 2
+            && ("KFSOWI".equals(Util.MODEL) // Kindle Soho
+            || ("AFTS".equals(Util.MODEL) && codecInfo.secure)))) { // Fire TV Gen 2
           // Use the default value for cases where platform limitations may prevent buffers of the
           // calculated maximum input size from being allocated.
           return Format.NO_VALUE;
@@ -1617,7 +1621,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
       case VideoFrameReleaseControl.FRAME_RELEASE_TRY_AGAIN_LATER:
         return false;
       case VideoFrameReleaseControl.FRAME_RELEASE_SCHEDULED:
-        releaseFrame(checkStateNotNull(codec), bufferIndex, presentationTimeUs, format);
+        releaseFrame(checkStateNotNull(codec), bufferIndex, presentationTimeUs, format, bufferPresentationTimeUs, positionUs);
         return true;
       default:
         throw new IllegalStateException(String.valueOf(frameReleaseAction));
@@ -1633,9 +1637,36 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
   }
 
   private void releaseFrame(
-      MediaCodecAdapter codec, int bufferIndex, long presentationTimeUs, Format format) {
+      MediaCodecAdapter codec,
+      int bufferIndex,
+      long presentationTimeUs,
+      Format format,
+      long bufferPresentationTimeUs, // MIREGO added
+      long positionUs // MIREGO added
+  ) {
     long releaseTimeNs = videoFrameReleaseInfo.getReleaseTimeNs();
     long earlyUs = videoFrameReleaseInfo.getEarlyUs();
+
+    long systemTimeNs = getClock().nanoTime();
+    long unadjustedFrameReleaseTimeNs = systemTimeNs + (earlyUs * 1000);
+    // MIREGO START
+    if ( (earlyUs < -Util.audioVideoDeltaToLogErrorMs * 1000 || earlyUs > Util.audioVideoDeltaToLogErrorMs * 1000) && !hasNotifiedAvDesyncError) {
+      Log.e(TAG, new PlaybackException("AV desync: video is offset by " + (earlyUs / 1000) + " ms",
+          new RuntimeException(), PlaybackException.ERROR_CODE_AUDIO_VIDEO_DESYNC));
+      hasNotifiedAvDesyncError = true;
+    }
+    int logLevel;
+    long timeMs = System.currentTimeMillis();
+    if (timeMs > lastLogProcessOutputBufferMs + 1000) {
+      logLevel = Log.LOG_LEVEL_VERBOSE1;
+      lastLogProcessOutputBufferMs = timeMs;
+    } else {
+      logLevel = Log.LOG_LEVEL_VERBOSE3;
+    }
+    Log.v(logLevel, TAG, "processOutputBuffer unadjustedFrameReleaseTimeUs: %d  bufferPresentationTimeUs: %d  positionUs: %d  earlyUs %d  playbackSpeed: %f",
+        unadjustedFrameReleaseTimeNs / 1000, bufferPresentationTimeUs, positionUs, earlyUs, getPlaybackSpeed());
+    // END MIREGO
+
     if (shouldSkipBuffersWithIdenticalReleaseTime() && releaseTimeNs == lastFrameReleaseTimeNs) {
       // This frame should be displayed on the same vsync with the previous released frame. We
       // are likely rendering frames at a rate higher than the screen refresh rate. Skip
@@ -1985,6 +2016,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
       placeholderSurface = null;
     }
   }
+
 
   private void maybeSetupTunnelingForFirstFrame() {
     if (!tunneling || Util.SDK_INT < 23) {
