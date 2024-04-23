@@ -15,11 +15,13 @@ buildscript {
     repositories {
         google()
         mavenCentral()
+        delegate.miregoPublic()
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:8.3.2'
         classpath 'com.google.android.gms:strict-version-matcher-plugin:1.2.4'
         classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.0'
+        classpath 'mirego:publish-plugin:1.0'
     }
 }
 allprojects {
