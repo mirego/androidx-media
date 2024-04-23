@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 project.ext {
-    releaseVersion = '1.9.4'
+    releaseVersion = '1.9.4' //MIREGO: also change MediaLibraryInfo.VERSION
     releaseVersionCode = 1_009_004_3_00
-    minSdkVersion = 23
+    minSdkVersion = 21
     // See https://developer.android.com/training/cars/media/automotive-os#automotive-module
     automotiveMinSdkVersion = 28
     appTargetSdkVersion = 34
