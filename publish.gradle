@@ -59,3 +59,4 @@ afterEvaluate {
     miregoPublish {
     }
 }
+//tasks.withType(PublishToMavenRepository) { it.dependsOn lint, test }
