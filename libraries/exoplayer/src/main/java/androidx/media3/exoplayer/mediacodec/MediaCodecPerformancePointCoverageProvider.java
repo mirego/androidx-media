@@ -130,11 +130,6 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
      * Checks if the CDD-requirement to support H264 720p at 60 fps is covered by PerformancePoints.
      */
     private static boolean shouldIgnorePerformancePoints() {
-      // MIREGO added to select devices on which we do not want to ignore the performance points
-      if (Util.doNotIgnorePerformancePointsForResolutionAndFrameRate) {
-        return false;
-      }
-
       // The same check as below is tested in CTS for non-secure codecs and we should get reliable
       // results from API 35.
       @PerformancePointCoverageResult
