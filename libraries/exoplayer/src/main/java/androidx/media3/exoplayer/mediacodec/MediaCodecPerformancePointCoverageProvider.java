@@ -88,9 +88,8 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
    */
   public static @PerformancePointCoverageResult int areResolutionAndFrameRateCovered(
       VideoCapabilities videoCapabilities, int width, int height, double frameRate) {
-    // MIREGO added !doNotIgnorePerformancePointsForResolutionAndFrameRate condition
     if (Util.SDK_INT < 29
-        || (!Util.doNotIgnorePerformancePointsForResolutionAndFrameRate && shouldIgnorePerformancePoints != null && shouldIgnorePerformancePoints)) {
+        || (shouldIgnorePerformancePoints != null && shouldIgnorePerformancePoints)) {
       return COVERAGE_RESULT_NO_PERFORMANCE_POINTS_UNSUPPORTED;
     }
 
@@ -118,8 +117,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
       int performancePointCoverageResult =
           evaluatePerformancePointCoverage(performancePointList, targetPerformancePoint);
 
-      if (!Util.doNotIgnorePerformancePointsForResolutionAndFrameRate // MIREGO added to select devices on which we do not want to ignore the performance points
-          && performancePointCoverageResult == COVERAGE_RESULT_NO
+      if (performancePointCoverageResult == COVERAGE_RESULT_NO
           && shouldIgnorePerformancePoints == null) {
         // See https://github.com/google/ExoPlayer/issues/10898,
         // https://github.com/androidx/media/issues/693,
