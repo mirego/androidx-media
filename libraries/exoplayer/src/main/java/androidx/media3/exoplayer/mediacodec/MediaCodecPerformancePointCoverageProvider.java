@@ -136,11 +136,6 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
         return false;
       }
 
-      // MIREGO added to select devices on which we do not want to ignore the performance points
-      if (Util.doNotIgnorePerformancePointsForResolutionAndFrameRate) {
-        return false;
-      }
-
       @PerformancePointCoverageResult
       int h264RequiredSupportResult =
           evaluateH264RequiredSupport(/* requiresSecureDecoder= */ false);
