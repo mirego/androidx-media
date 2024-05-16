@@ -86,6 +86,18 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
    */
   public static @PerformancePointCoverageResult int areResolutionAndFrameRateCovered(
       VideoCapabilities videoCapabilities, int width, int height, double frameRate) {
+
+    // MIREGO: added support for doNotIgnorePerformancePointsForResolutionAndFrameRate
+    // some devices now drop lots of frames due to COVERAGE_RESULT_NO_PERFORMANCE_POINTS_UNSUPPORTED
+    // we want to be able to disable it for some device models
+    if (Util.doNotIgnorePerformancePointsForResolutionAndFrameRate && Util.SDK_INT >= 29) {
+      int evaluation = Api29.areResolutionAndFrameRateCovered(videoCapabilities, width, height, frameRate);
+      if (evaluation == COVERAGE_RESULT_NO_PERFORMANCE_POINTS_UNSUPPORTED) {
+        return COVERAGE_RESULT_NO;
+      }
+      return evaluation;
+    }
+
     if (Util.SDK_INT < 29
         || (shouldIgnorePerformancePoints != null && shouldIgnorePerformancePoints)) {
       return COVERAGE_RESULT_NO_PERFORMANCE_POINTS_UNSUPPORTED;
