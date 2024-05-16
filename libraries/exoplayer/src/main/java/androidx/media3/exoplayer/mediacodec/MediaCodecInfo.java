@@ -538,12 +538,6 @@ public final class MediaCodecInfo {
       int evaluation =
           MediaCodecPerformancePointCoverageProvider.areResolutionAndFrameRateCovered(
               videoCapabilities, width, height, frameRate);
-
-      // MIREGO added support for doNotIgnorePerformancePointsForResolutionAndFrameRate
-      if (evaluation == COVERAGE_RESULT_NO_PERFORMANCE_POINTS_UNSUPPORTED && Util.doNotIgnorePerformancePointsForResolutionAndFrameRate) {
-        evaluation = COVERAGE_RESULT_NO;
-      }
-
       if (evaluation == COVERAGE_RESULT_YES) {
         return true;
       } else if (evaluation == COVERAGE_RESULT_NO) {
