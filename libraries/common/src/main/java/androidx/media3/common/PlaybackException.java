@@ -293,7 +293,7 @@ public class PlaybackException extends Exception implements Bundleable {
    * Player implementations that want to surface custom errors can use error codes greater than this
    * value, so as to avoid collision with other error codes defined in this class.
    */
-  public static final int CUSTOM_ERROR_CODE_BASE = 1000000;
+  public static final int CUSTOM_ERROR_CODE_BASE = 9000;  // MIREGO: changed from 1000000, it looked weird
 
   /** Returns the name of a given {@code errorCode}. */
   public static String getErrorCodeName(@ErrorCode int errorCode) {
@@ -388,7 +388,7 @@ public class PlaybackException extends Exception implements Bundleable {
 
       default:
         if (errorCode >= CUSTOM_ERROR_CODE_BASE) {
-          return "custom error code";
+          return "Error code " + errorCode;
         } else {
           return "invalid error code";
         }
