@@ -1072,6 +1072,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
     hasNotifiedAvDesyncError = false;
     hasNotifiedAvDesyncSkippedFramesError = false;
     queuedFrames = 0;
+    Util.currentAccumulatedVideoQueuedFrames = 0;
 
     videoFrameReleaseControl.onStarted();
   }
@@ -1526,6 +1527,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
 
     // MIREGO: added
     queuedFrames++;
+    Util.currentAccumulatedVideoQueuedFrames++;
     if (queuedFrames >= NOTIFY_QUEUED_FRAMES_THRESHOLD) {
       maybeNotifyQueuedFrames();
     }
