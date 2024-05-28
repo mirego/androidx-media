@@ -766,6 +766,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
     queuedFrames = 0;
     droppedFrameAccumulationStartTimeMs = SystemClock.elapsedRealtime();
     lastRender = 0;
+    Util.currentAccumulatedVideoQueuedFrames = 0;
   }
 
   @Override
@@ -1237,6 +1238,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer implements Video
 
     // MIREGO: added
     queuedFrames++;
+    Util.currentAccumulatedVideoQueuedFrames++;
     if (queuedFrames >= NOTIFY_QUEUED_FRAMES_THRESHOLD) {
       maybeNotifyQueuedFrames();
     }

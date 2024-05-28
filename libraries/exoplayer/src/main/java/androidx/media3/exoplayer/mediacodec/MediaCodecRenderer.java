@@ -15,6 +15,8 @@
  */
 package androidx.media3.exoplayer.mediacodec;
 
+import static androidx.media3.common.C.TRACK_TYPE_AUDIO;
+import static androidx.media3.common.C.TRACK_TYPE_VIDEO;
 import static androidx.media3.common.util.Assertions.checkNotNull;
 import static androidx.media3.common.util.Assertions.checkState;
 import static androidx.media3.common.util.Assertions.checkStateNotNull;
@@ -414,6 +416,24 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
   // MIREGO for logging
   int dequeuedInputCount = 0;
   long lastLogMs = 0;
+
+  // MIREGO: added the following 2 functions to log and debug a specific issue (rendering pipleine stall)
+  // MIREGO: once the issue is solved, we should get rid of that code
+  void saveFeedInputBufferStep(int stepIndex) {
+    if (getTrackType() == TRACK_TYPE_AUDIO) {
+      Util.audioLastFeedInputBufferStep = stepIndex;
+    } else if (getTrackType() == TRACK_TYPE_VIDEO) {
+      Util.videoLastFeedInputBufferStep = stepIndex;
+    }
+  }
+
+  void saveDrainOutputBufferStep(int stepIndex) {
+    if (getTrackType() == TRACK_TYPE_AUDIO) {
+      Util.audioLastDrainOutputBufferStep = stepIndex;
+    } else if (getTrackType() == TRACK_TYPE_VIDEO) {
+      Util.videoLastDrainOutputBufferStep = stepIndex;
+    }
+  }
 
   /**
    * @param trackType The {@link C.TrackType track type} that the renderer handles.
@@ -1380,6 +1400,7 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
         getTrackType(), codecDrainState, inputStreamEnded);
 
     if (codec == null || codecDrainState == DRAIN_STATE_WAIT_END_OF_STREAM || inputStreamEnded) {
+      saveFeedInputBufferStep(1);
       return false;
     }
     if (codecDrainState == DRAIN_STATE_NONE && shouldReinitCodec()) {
@@ -1394,6 +1415,7 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
         Log.v(Log.LOG_LEVEL_VERBOSE4, TAG, "feedInputBuffer(type:%d) codec.dequeueInputBufferIndex failed",
             getTrackType());
 
+        saveFeedInputBufferStep(2);
         return false;
       }
 
@@ -1422,6 +1444,7 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
         resetInputBuffer();
       }
       codecDrainState = DRAIN_STATE_WAIT_END_OF_STREAM;
+      saveFeedInputBufferStep(3);
       return false;
     }
 
@@ -1435,6 +1458,7 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
       codec.queueInputBuffer(inputIndex, 0, ADAPTATION_WORKAROUND_BUFFER.length, 0, 0);
       resetInputBuffer();
       codecReceivedBuffers = true;
+      saveFeedInputBufferStep(4);
       return true;
     }
 
@@ -1463,6 +1487,7 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
       // that rendering will resume from the next key frame.
       readSourceOmittingSampleData(/* readFlags= */ 0);
       flushCodec();
+      saveFeedInputBufferStep(5);
       return true;
     }
 
@@ -1471,6 +1496,7 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
         // Notify output queue of the last buffer's timestamp.
         lastBufferInStreamPresentationTimeUs = largestQueuedPresentationTimeUs;
       }
+      saveFeedInputBufferStep(6);
       return false;
     }
     if (result == C.RESULT_FORMAT_READ) {
@@ -1481,6 +1507,7 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
         codecReconfigurationState = RECONFIGURATION_STATE_WRITE_PENDING;
       }
       onInputFormatChanged(formatHolder);
+      saveFeedInputBufferStep(7);
       return true;
     }
 
@@ -1501,6 +1528,7 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
       inputStreamEnded = true;
       if (!codecReceivedBuffers) {
         processEndOfStream();
+        saveFeedInputBufferStep(8);
         return false;
       }
       try {
@@ -1520,6 +1548,7 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
         throw createRendererException(
             e, inputFormat, Util.getErrorCodeForMediaDrmErrorCode(e.getErrorCode()));
       }
+      saveFeedInputBufferStep(9);
       return false;
     }
 
@@ -1536,6 +1565,7 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
         // into a subsequent buffer (if there is one).
         codecReconfigurationState = RECONFIGURATION_STATE_WRITE_PENDING;
       }
+      saveFeedInputBufferStep(10);
       return true;
     }
 
@@ -1574,6 +1604,7 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
       handleInputBufferSupplementalData(buffer);
     }
 
+    saveFeedInputBufferStep(1000);
     onQueueInputBuffer(buffer);
     try {
       if (bufferEncrypted) {
@@ -2087,7 +2118,7 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
           }
           // MIREGO
           Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "drainOutputBuffer(type:%d) failed to dequeueOutputBufferIndex", getTrackType());
-
+          saveDrainOutputBufferStep(1);
           return false;
         }
       } else {
@@ -2101,6 +2132,7 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
 
         if (outputIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED /* (-2) */) {
           processOutputMediaFormatChanged();
+          saveDrainOutputBufferStep(2);
           return true;
         }
         // MediaCodec.INFO_TRY_AGAIN_LATER (-1) or unknown negative return value.
@@ -2108,6 +2140,7 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
             && (inputStreamEnded || codecDrainState == DRAIN_STATE_WAIT_END_OF_STREAM)) {
           processEndOfStream();
         }
+        saveDrainOutputBufferStep(3);
         return false;
       }
 
@@ -2127,6 +2160,7 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
 
         shouldSkipAdaptationWorkaroundOutputBuffer = false;
         codec.releaseOutputBuffer(outputIndex, false);
+        saveDrainOutputBufferStep(4);
         return true;
       } else if (outputBufferInfo.size == 0
           && (outputBufferInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
@@ -2136,6 +2170,7 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
         // MIREGO
         Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "drainOutputBuffer(type:%d) processEndOfStream", getTrackType());
 
+        saveDrainOutputBufferStep(5);
         return false;
       }
 
@@ -2186,6 +2221,7 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
           // Release the codec, as it's in an error state.
           releaseCodec();
         }
+        saveDrainOutputBufferStep(6);
         return false;
       }
     } else {
@@ -2213,9 +2249,13 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
       boolean isEndOfStream = (outputBufferInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0;
       resetOutputBuffer();
       if (!isEndOfStream) {
+        saveDrainOutputBufferStep(1000);
         return true;
       }
+      saveDrainOutputBufferStep(1001);
       processEndOfStream();
+    } else {
+      saveDrainOutputBufferStep(7);
     }
 
     return false;
