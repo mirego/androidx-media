@@ -185,10 +185,16 @@ public final class Util {
 
   // MIREGO
   public static boolean shouldWorkaroundAudioSampleRateDataBug = false;
-  public static int timeSinceLastVideoRenderToLogErrorMs = 1000;
   public static int audioVideoDeltaToLogErrorMs = 750;
   public static boolean shouldIgnoreCodecFpsLimitForResolution = false; // MIREGO ADDED
   public static boolean doNotIgnorePerformancePointsForResolutionAndFrameRate = false; // MIREGO ADDED
+
+  // TEMP DEBUG STUFF
+  public static int videoLastFeedInputBufferStep = 0;
+  public static int audioLastFeedInputBufferStep = 0;
+  public static int videoLastDrainOutputBufferStep = 0;
+  public static int audioLastDrainOutputBufferStep = 0;
+  public static int currentAccumulatedVideoQueuedFrames = 0;
 
   /** An empty long array. */
   @UnstableApi public static final long[] EMPTY_LONG_ARRAY = new long[0];
