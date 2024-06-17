@@ -1163,7 +1163,8 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
     hasNotifiedAvDesyncError = false;
     hasNotifiedAvDesyncSkippedFramesError = false;
     queuedFrames = 0;
-    Util.currentAccumulatedVideoQueuedFrames = 0;
+    Util.currentQueuedInputBuffers = 0;
+    Util.currentProcessedOutputBuffers = 0;
 
     videoFrameReleaseControl.onStarted();
   }
@@ -1687,7 +1688,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
 
     // MIREGO: added
     queuedFrames++;
-    Util.currentAccumulatedVideoQueuedFrames++;
+    Util.currentQueuedInputBuffers++;
     if (queuedFrames >= NOTIFY_QUEUED_FRAMES_THRESHOLD) {
       maybeNotifyQueuedFrames();
     }
@@ -2155,6 +2156,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
   @CallSuper
   @Override
   protected void onProcessedOutputBuffer(long presentationTimeUs) {
+    Util.currentProcessedOutputBuffers++;
     super.onProcessedOutputBuffer(presentationTimeUs);
     if (!tunneling) {
       buffersInCodecCount--;
