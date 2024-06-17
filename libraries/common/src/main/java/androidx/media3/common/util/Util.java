@@ -189,7 +189,8 @@ public final class Util {
   public static int audioLastFeedInputBufferStep = 0;
   public static int videoLastDrainOutputBufferStep = 0;
   public static int audioLastDrainOutputBufferStep = 0;
-  public static int currentAccumulatedVideoQueuedFrames = 0;
+  public static int currentQueuedInputBuffers = 0;
+  public static int currentProcessedOutputBuffers = 0;
 
   /** An empty long array. */
   @UnstableApi public static final long[] EMPTY_LONG_ARRAY = new long[0];
