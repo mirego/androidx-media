@@ -184,13 +184,14 @@ public final class Util {
   public static boolean useDifferentAudioSessionIdForTunneling = false; // MIREGO ADDED
   public static int ntpTimeoutMs = 5000; // MIREGO ADDED
 
-  // TEMP DEBUG STUFF
+  // TEMP DEBUG STUFF (to investigate an infinite buffering issue caused by what seems to be a video codec stall)
   public static int videoLastFeedInputBufferStep = 0;
   public static int audioLastFeedInputBufferStep = 0;
   public static int videoLastDrainOutputBufferStep = 0;
   public static int audioLastDrainOutputBufferStep = 0;
   public static int currentQueuedInputBuffers = 0;
   public static int currentProcessedOutputBuffers = 0;
+  public static long waitingForDecodedVideoBufferTimeMs = 0;
 
   /** An empty long array. */
   @UnstableApi public static final long[] EMPTY_LONG_ARRAY = new long[0];
