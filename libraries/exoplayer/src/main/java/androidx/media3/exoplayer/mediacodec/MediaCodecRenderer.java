@@ -403,11 +403,13 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
   private boolean experimentalEnableProcessedStreamChangedAtStart;
 
   // MIREGO for logging
-  int dequeuedInputCount = 0;
-  long lastLogMs = 0;
+  private int dequeuedInputCount = 0;
+  private long lastLogMs = 0;
 
-  // MIREGO: added the following 2 functions to log and debug a specific issue (rendering pipleine stall)
+  // MIREGO: added the following field and 2 functions to log and debug a specific issue (rendering pipleine stall)
   // MIREGO: once the issue is solved, we should get rid of that code
+  private boolean hasReportedRenderingStall = false;
+
   void saveFeedInputBufferStep(int stepIndex) {
     if (getTrackType() == TRACK_TYPE_AUDIO) {
       Util.audioLastFeedInputBufferStep = stepIndex;
@@ -828,6 +830,8 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
 
   @Override
   protected void onReset() {
+    hasReportedRenderingStall = false;
+
     try {
       disableBypass();
       releaseCodec();
@@ -2243,6 +2247,22 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
       }
 
       if (outputIndex < 0) {
+
+        // MIREGO video renderer stall detection
+        if (getTrackType() == TRACK_TYPE_VIDEO) {
+
+          if (Util.currentProcessedOutputBuffers < Util.currentQueuedInputBuffers) {
+            // waiting for a decoded buffer to be available from the codec
+            long currentTimeMs = System.currentTimeMillis();
+            if (Util.waitingForDecodedVideoBufferTimeMs == 0) {
+              Util.waitingForDecodedVideoBufferTimeMs = currentTimeMs; // starting to wait for the decoded buffer
+            } else if (!hasReportedRenderingStall && currentTimeMs > Util.waitingForDecodedVideoBufferTimeMs + 7000) { // been waiting for an arbitrary while, send an error to the app
+              Log.e(TAG, new PlaybackException("Video codec may be stalled error", new RuntimeException(), PlaybackException.ERROR_CODE_VIDEO_CODEC_STALLED));
+              hasReportedRenderingStall = true;
+            }
+          }
+        }
+
         // MIREGO
         Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "drainOutputBuffer(type:%d) Failed dequeueOutputBufferIndex res: %d (dequeuedOutputCount: %d)",
             getTrackType(), outputIndex, dequeuedOutputCount);
@@ -2266,6 +2286,11 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
         }
         saveDrainOutputBufferStep(3);
         return false;
+      }
+
+      // MIREGO video renderer stall detection
+      if (getTrackType() == TRACK_TYPE_VIDEO) {
+        Util.waitingForDecodedVideoBufferTimeMs = 0; // we got a decoded buffer, reset the wait time
       }
 
       // MIREGO START
