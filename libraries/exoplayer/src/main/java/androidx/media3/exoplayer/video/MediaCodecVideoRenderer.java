@@ -1163,8 +1163,6 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
     hasNotifiedAvDesyncError = false;
     hasNotifiedAvDesyncSkippedFramesError = false;
     queuedFrames = 0;
-    Util.currentQueuedInputBuffers = 0;
-    Util.currentProcessedOutputBuffers = 0;
 
     videoFrameReleaseControl.onStarted();
   }
@@ -1212,6 +1210,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
       hasSetVideoSink = false;
       startPositionUs = C.TIME_UNSET;
       releasePlaceholderSurface();
+      Util.currentQueuedInputBuffers = 0;
+      Util.currentProcessedOutputBuffers = 0;
+      Util.waitingForDecodedVideoBufferTimeMs = 0;
     }
   }
 
