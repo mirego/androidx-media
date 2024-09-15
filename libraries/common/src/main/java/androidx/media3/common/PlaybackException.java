@@ -307,6 +307,9 @@ public class PlaybackException extends Exception {
   /** MIREGO: Caused by a network error trying to get time from the NTP server */
   public static final int ERROR_CODE_NTP = 5905;
 
+  /** MIREGO: Caused by the video codec being stalled (issue under investigation) */
+  public static final int ERROR_CODE_VIDEO_CODEC_STALLED = 5906;
+
   // DRM errors (6xxx).
 
   /** Caused by an unspecified error related to DRM protection. */
@@ -478,6 +481,8 @@ public class PlaybackException extends Exception {
         return "ERROR_CODE_AUDIO_WAITING_FOR_HEAD_POSITION_RESET";
       case ERROR_CODE_NTP:
         return "ERROR_CODE_NTP";
+      case ERROR_CODE_VIDEO_CODEC_STALLED:
+        return "ERROR_CODE_VIDEO_CODEC_STALLED";
 
       default:
         if (errorCode >= CUSTOM_ERROR_CODE_BASE) {
