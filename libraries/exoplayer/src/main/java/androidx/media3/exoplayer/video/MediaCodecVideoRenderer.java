@@ -1642,7 +1642,6 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
   @Override
   protected void onProcessedOutputBuffer(long presentationTimeUs) {
     Util.currentProcessedOutputBuffers++;
-    Util.waitingForDecodedVideoBufferTimeMs = 0; // we have to also reset the timer here, because in tunneling we don't handle the decoded buffers
     super.onProcessedOutputBuffer(presentationTimeUs);
     if (!tunneling) {
       buffersInCodecCount--;
