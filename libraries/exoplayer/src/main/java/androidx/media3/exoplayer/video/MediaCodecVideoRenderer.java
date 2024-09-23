@@ -1616,9 +1616,6 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
     if (hasDequeuedBuffer) {
         Util.waitingForDecodedVideoBufferTimeMs = 0; // we got a decoded buffer, reset the wait time
     } else {
-      System.out.println("SMO currentQueuedInputBuffers " + Util.currentQueuedInputBuffers
-          + " currentProcessedOutputBuffers "
-          + Util.currentProcessedOutputBuffers);
       if (Util.currentProcessedOutputBuffers < Util.currentQueuedInputBuffers) {
         // waiting for a decoded buffer to be available from the codec
         long currentTimeMs = System.currentTimeMillis();
