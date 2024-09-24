@@ -17,6 +17,7 @@ package androidx.media3.exoplayer.video;
 
 import static android.os.Build.VERSION.SDK_INT;
 import static android.view.Display.DEFAULT_DISPLAY;
+import static androidx.media3.common.C.TRACK_TYPE_VIDEO;
 import static androidx.media3.exoplayer.DecoderReuseEvaluation.DISCARD_REASON_MAX_INPUT_SIZE_EXCEEDED;
 import static androidx.media3.exoplayer.DecoderReuseEvaluation.DISCARD_REASON_VIDEO_FRAME_RATE_CHANGED;
 import static androidx.media3.exoplayer.DecoderReuseEvaluation.DISCARD_REASON_VIDEO_MAX_RESOLUTION_EXCEEDED;
@@ -2147,6 +2148,31 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
     }
 
     lastRenderedTunneledBufferPresentationTimeUs = presentationTimeUs;
+  }
+
+  protected void detectRendererStallMirego(boolean hasDequeuedBuffer) {
+    if (tunneling) {
+      return;
+    }
+
+    if (hasDequeuedBuffer) {
+        Util.waitingForDecodedVideoBufferTimeMs = 0; // we got a decoded buffer, reset the wait time
+    } else {
+      if (Util.currentProcessedOutputBuffers < Util.currentQueuedInputBuffers) {
+        // waiting for a decoded buffer to be available from the codec
+        long currentTimeMs = System.currentTimeMillis();
+        if (Util.waitingForDecodedVideoBufferTimeMs == 0) {
+          Util.waitingForDecodedVideoBufferTimeMs = currentTimeMs; // starting to wait for the decoded buffer
+        } else if (!hasReportedRenderingStall && currentTimeMs
+            > Util.waitingForDecodedVideoBufferTimeMs
+            + 7000) { // been waiting for an arbitrary while, send an error to the app
+          Log.e(TAG,
+              new PlaybackException("Video codec may be stalled error", new RuntimeException(),
+                  PlaybackException.ERROR_CODE_VIDEO_CODEC_STALLED));
+          hasReportedRenderingStall = true;
+        }
+      }
+    }
   }
 
   /** Called when a output EOS was received in tunneling mode. */
