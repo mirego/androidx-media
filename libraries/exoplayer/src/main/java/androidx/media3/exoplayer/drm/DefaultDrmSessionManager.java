@@ -746,6 +746,9 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
       if (index >= 0) {
         offlineLicenseKeySetId = offlineLicenseKeySetIdList.get(index);
       } else {  // oops, we haven't found the drmInitData hash. We might as well fallback to the first key.
+        Log.e(TAG,
+            new PlaybackException("Offline Drm hash code not found. Trying first available key", new RuntimeException(),
+                PlaybackException.ERROR_CODE_OFFLINE_DRM_HASH_CODE_NOT_FOUND));
         offlineLicenseKeySetId = offlineLicenseKeySetIdList.get(0);
       }
     }
