@@ -535,6 +535,7 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
       session =
           createAndAcquireSessionWithRetry(
               schemeDatas,
+              format.drmInitData.hashCode(), // MIREGO: multiple offline DRM keys
               /* isPlaceholderSession= */ false,
               eventDispatcher,
               shouldReleasePreacquiredSessionsBeforeRetrying);
@@ -582,6 +583,7 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
       DefaultDrmSession placeholderDrmSession =
           createAndAcquireSessionWithRetry(
               /* schemeDatas= */ ImmutableList.of(),
+              0, // MIREGO: multiple offline DRM keys
               /* isPlaceholderSession= */ true,
               /* eventDispatcher= */ null,
               shouldReleasePreacquiredSessionsBeforeRetrying);
@@ -647,17 +649,18 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
 
   private DefaultDrmSession createAndAcquireSessionWithRetry(
       @Nullable List<SchemeData> schemeDatas,
+      int drmInitDataHash, // MIREGO: multiple offline DRM keys
       boolean isPlaceholderSession,
       @Nullable DrmSessionEventListener.EventDispatcher eventDispatcher,
       boolean shouldReleasePreacquiredSessionsBeforeRetrying) {
     DefaultDrmSession session =
-        createAndAcquireSession(schemeDatas, isPlaceholderSession, eventDispatcher);
+        createAndAcquireSession(schemeDatas, drmInitDataHash, isPlaceholderSession, eventDispatcher); // MIREGO: multiple offline DRM keys
     // If we're short on DRM session resources, first try eagerly releasing all our keepalive
     // sessions and then retry the acquisition.
     if (acquisitionFailedIndicatingResourceShortage(session) && !keepaliveSessions.isEmpty()) {
       releaseAllKeepaliveSessions();
       undoAcquisition(session, eventDispatcher);
-      session = createAndAcquireSession(schemeDatas, isPlaceholderSession, eventDispatcher);
+      session = createAndAcquireSession(schemeDatas, drmInitDataHash, isPlaceholderSession, eventDispatcher); // MIREGO: multiple offline DRM keys
     }
 
     // If the acquisition failed again due to continued resource shortage, and
@@ -673,7 +676,7 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
         releaseAllKeepaliveSessions();
       }
       undoAcquisition(session, eventDispatcher);
-      session = createAndAcquireSession(schemeDatas, isPlaceholderSession, eventDispatcher);
+      session = createAndAcquireSession(schemeDatas, drmInitDataHash, isPlaceholderSession, eventDispatcher); // MIREGO: multiple offline DRM keys
     }
     return session;
   }
@@ -727,6 +730,7 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
    */
   private DefaultDrmSession createAndAcquireSession(
       @Nullable List<SchemeData> schemeDatas,
+      int drmInitDataHash, // MIREGO: multiple offline DRM keys
       boolean isPlaceholderSession,
       @Nullable DrmSessionEventListener.EventDispatcher eventDispatcher) {
     checkNotNull(exoMediaDrm);
@@ -738,9 +742,7 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
     if (offlineLicenseKeySetIdList.size() == 1) { // Keep legacy behavior with single offline key (just use it)
       offlineLicenseKeySetId = offlineLicenseKeySetIdList.get(0);
     } else if (!offlineLicenseKeySetIdList.isEmpty()){ //multiple offline DRM keys. Find the right keyId from the drmInitData hash
-      int hash = Arrays.hashCode(schemeDatas.get(0).data);
-      int index = drmInitDataHashList.indexOf(hash);
-      Log.d(TAG, "createAndAcquireSession schemeData size=%d  hash:%d index=%d", schemeDatas.size(), hash, index);
+      int index = drmInitDataHashList.indexOf(drmInitDataHash);
       if (index >= 0) {
         offlineLicenseKeySetId = offlineLicenseKeySetIdList.get(index);
       } else {  // oops, we haven't found the drmInitData hash. We might as well fallback to the first key.
