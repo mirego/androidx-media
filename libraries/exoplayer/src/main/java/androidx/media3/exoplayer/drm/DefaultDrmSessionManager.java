@@ -52,6 +52,8 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -324,7 +326,11 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
   private @MonotonicNonNull Looper playbackLooper;
   private @MonotonicNonNull Handler playbackHandler;
   private int mode;
-  @Nullable private byte[] offlineLicenseKeySetId;
+
+  // MIREGO: multiple offline DRM keys.
+  private List<byte[]> offlineLicenseKeySetIdList;
+  private List<Integer> drmInitDataHashList;
+
   private @MonotonicNonNull PlayerId playerId;
 
   /* package */ @Nullable volatile MediaDrmHandler mediaDrmHandler;
@@ -388,7 +394,21 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
       checkNotNull(offlineLicenseKeySetId);
     }
     this.mode = mode;
-    this.offlineLicenseKeySetId = offlineLicenseKeySetId;
+    // MIREGO: multiple offline DRM keys.
+    this.offlineLicenseKeySetIdList = (offlineLicenseKeySetId != null) ? ImmutableList.of(offlineLicenseKeySetId) : Collections.emptyList();
+    this.drmInitDataHashList = Collections.emptyList();
+  }
+
+  // MIREGO: multiple offline DRM keys. Added function
+  public void setMode(@Mode int mode, List<byte[]> offlineLicenseKeySetIdList, List<Integer> drmInitDataHashList) {
+    Log.d(TAG, "setMode %d  offlineLicenseKeySetId size=%s", mode, offlineLicenseKeySetIdList.size());
+    checkState(sessions.isEmpty());
+    if (mode == MODE_QUERY || mode == MODE_RELEASE) {
+      checkArgument(!offlineLicenseKeySetIdList.isEmpty());
+    }
+    this.mode = mode;
+    this.offlineLicenseKeySetIdList = offlineLicenseKeySetIdList;
+    this.drmInitDataHashList = drmInitDataHashList;
   }
 
   // DrmSessionManager implementation.
@@ -479,7 +499,7 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
     }
 
     @Nullable List<SchemeData> schemeDatas = null;
-    if (offlineLicenseKeySetId == null) {
+    if (offlineLicenseKeySetIdList.isEmpty()) { // MIREGO: multiple offline DRM keys
       schemeDatas = getSchemeDatas(checkNotNull(format.drmInitData), uuid, false);
       if (schemeDatas.isEmpty()) {
         final MissingSchemeDataException error = new MissingSchemeDataException(uuid);
@@ -490,6 +510,10 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
         return new ErrorStateDrmSession(
             new DrmSessionException(error, PlaybackException.ERROR_CODE_DRM_CONTENT_ERROR));
       }
+    } else if (offlineLicenseKeySetIdList.size() > 1) { // MIREGO: multiple offline DRM keys.
+      // we have to select the right session or create a new one with the right drmInitData/key
+      // if we only have 1 key set, just fallback to legacy behavior (use a null schemeData so we always use the same session)
+      schemeDatas = getSchemeDatas(checkNotNull(format.drmInitData), uuid, false);
     }
 
     @Nullable DefaultDrmSession session;
@@ -499,7 +523,7 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
       // Only use an existing session if it has matching init data.
       session = null;
       for (DefaultDrmSession existingSession : sessions) {
-        if (Util.areEqual(existingSession.schemeDatas, schemeDatas)) {
+        if (Util.areEqual(existingSession.schemeDatasEvenOffline, schemeDatas)) { // MIREGO: multiple offline DRM keys.
           session = existingSession;
           break;
         }
@@ -570,7 +594,7 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
   }
 
   private boolean canAcquireSession(DrmInitData drmInitData) {
-    if (offlineLicenseKeySetId != null) {
+    if (!offlineLicenseKeySetIdList.isEmpty()) { // MIREGO: multiple offline DRM keys
       // An offline license can be restored so a session can always be acquired.
       return true;
     }
@@ -708,6 +732,22 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
     checkNotNull(exoMediaDrm);
     // Placeholder sessions should always play clear samples without keys.
     boolean playClearSamplesWithoutKeys = this.playClearSamplesWithoutKeys | isPlaceholderSession;
+
+    // MIREGO: multiple offline DRM keys. Added block to get the right keySetId
+    byte[] offlineLicenseKeySetId = null;
+    if (offlineLicenseKeySetIdList.size() == 1) { // Keep legacy behavior with single offline key (just use it)
+      offlineLicenseKeySetId = offlineLicenseKeySetIdList.get(0);
+    } else if (!offlineLicenseKeySetIdList.isEmpty()){ //multiple offline DRM keys. Find the right keyId from the drmInitData hash
+      int hash = Arrays.hashCode(schemeDatas.get(0).data);
+      int index = drmInitDataHashList.indexOf(hash);
+      Log.d(TAG, "createAndAcquireSession schemeData size=%d  hash:%d index=%d", schemeDatas.size(), hash, index);
+      if (index >= 0) {
+        offlineLicenseKeySetId = offlineLicenseKeySetIdList.get(index);
+      } else {  // oops, we haven't found the drmInitData hash. We might as well fallback to the first key.
+        offlineLicenseKeySetId = offlineLicenseKeySetIdList.get(0);
+      }
+    }
+
     DefaultDrmSession session =
         new DefaultDrmSession(
             uuid,

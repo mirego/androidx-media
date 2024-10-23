@@ -123,6 +123,9 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
   /** The DRM scheme datas, or null if this session uses offline keys. */
   @Nullable public final List<SchemeData> schemeDatas;
 
+  // MIREGO: added to be able to reuse offline sessions with compatible data without messing with the field schemeDatas, that is used to determine if it's an offline key when getting the key request
+  @Nullable public final List<SchemeData> schemeDatasEvenOffline;
+
   private final ExoMediaDrm mediaDrm;
   private final ProvisioningManager provisioningManager;
   private final ReferenceCountListener referenceCountListener;
@@ -202,6 +205,9 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
     } else {
       this.schemeDatas = Collections.unmodifiableList(Assertions.checkNotNull(schemeDatas));
     }
+    // MIREGO: added.
+    this.schemeDatasEvenOffline = Collections.unmodifiableList(Assertions.checkNotNull(schemeDatas));
+
     this.keyRequestParameters = keyRequestParameters;
     this.callback = callback;
     this.eventDispatchers = new CopyOnWriteMultiset<>();
