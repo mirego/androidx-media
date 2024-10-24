@@ -310,6 +310,9 @@ public class PlaybackException extends Exception {
   /** MIREGO: Caused by the video codec being stalled (issue under investigation) */
   public static final int ERROR_CODE_VIDEO_CODEC_STALLED = 5906;
 
+  /** MIREGO: Caused by a Drm offline key hashcode not found in the hash codes array */
+  public static final int ERROR_CODE_OFFLINE_DRM_HASH_CODE_NOT_FOUND = 5907;
+
   // DRM errors (6xxx).
 
   /** Caused by an unspecified error related to DRM protection. */
@@ -483,6 +486,8 @@ public class PlaybackException extends Exception {
         return "ERROR_CODE_NTP";
       case ERROR_CODE_VIDEO_CODEC_STALLED:
         return "ERROR_CODE_VIDEO_CODEC_STALLED";
+      case ERROR_CODE_OFFLINE_DRM_HASH_CODE_NOT_FOUND:
+        return "ERROR_CODE_OFFLINE_DRM_HASH_CODE_NOT_FOUND";
 
       default:
         if (errorCode >= CUSTOM_ERROR_CODE_BASE) {
