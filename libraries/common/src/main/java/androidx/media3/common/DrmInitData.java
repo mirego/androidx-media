@@ -370,6 +370,18 @@ public final class DrmInitData implements Comparator<SchemeData>, Parcelable {
       return hashCode;
     }
 
+    // MIREGO: added toString
+    @Override
+    public String toString() {
+      return "SchemeData{" +
+          "hashCode=" + hashCode +
+          ", uuid=" + uuid +
+          ", licenseServerUrl='" + licenseServerUrl + '\'' +
+          ", mimeType='" + mimeType + '\'' +
+          ", data=" + Arrays.toString(data) +
+          '}';
+    }
+
     // Parcelable implementation.
 
     @Override
