@@ -328,8 +328,8 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
   private int mode;
 
   // MIREGO: multiple offline DRM keys.
-  private List<byte[]> offlineLicenseKeySetIdList;
-  private List<String> drmInitDataUidList;
+  private List<byte[]> offlineLicenseKeySetIdList = Collections.emptyList();
+  private List<String> drmInitDataUidList = Collections.emptyList();
 
   private @MonotonicNonNull PlayerId playerId;
 
