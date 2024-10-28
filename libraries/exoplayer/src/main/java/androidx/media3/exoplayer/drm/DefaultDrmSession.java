@@ -210,8 +210,13 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
     } else {
       this.schemeDatas = Collections.unmodifiableList(checkNotNull(schemeDatas));
     }
-    // MIREGO: added.
-    this.schemeDatasEvenOffline = Collections.unmodifiableList(Assertions.checkNotNull(schemeDatas));
+
+    // MIREGO: added block
+    if (schemeDatas != null) {
+      this.schemeDatasEvenOffline = Collections.unmodifiableList(schemeDatas);
+    } else {
+      this.schemeDatasEvenOffline = null;
+    }
 
     this.keyRequestParameters = keyRequestParameters;
     this.callback = callback;
