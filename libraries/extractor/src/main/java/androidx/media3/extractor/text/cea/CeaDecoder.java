@@ -87,7 +87,8 @@ import java.util.ArrayDeque;
     if (!ceaInputBuffer.isEndOfStream()
         && ceaInputBuffer.timeUs != C.TIME_END_OF_SOURCE
         && outputStartTimeUs != C.TIME_UNSET
-        && ceaInputBuffer.timeUs < outputStartTimeUs) {
+        && ceaInputBuffer.timeUs < outputStartTimeUs
+        && !ceaInputBuffer.isEndOfStream()) { // MIREGO: added !isEndOfStream condition to avoid the buffer signaling the end of stream to be skipped
       // We can start decoding anywhere in CEA formats, so discarding on the input side is fine.
       releaseInputBuffer(ceaInputBuffer);
     } else {
