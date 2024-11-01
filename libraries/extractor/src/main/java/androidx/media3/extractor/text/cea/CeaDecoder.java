@@ -85,7 +85,8 @@ import java.util.PriorityQueue;
   public void queueInputBuffer(SubtitleInputBuffer inputBuffer) throws SubtitleDecoderException {
     Assertions.checkArgument(inputBuffer == dequeuedInputBuffer);
     CeaInputBuffer ceaInputBuffer = (CeaInputBuffer) inputBuffer;
-    if (outputStartTimeUs != C.TIME_UNSET && ceaInputBuffer.timeUs < outputStartTimeUs) {
+    // MIREGO: added !isEndOfStream condition to avoid the buffer signaling the end of stream to be skipped
+    if (outputStartTimeUs != C.TIME_UNSET && ceaInputBuffer.timeUs < outputStartTimeUs && !ceaInputBuffer.isEndOfStream()) {
       // We can start decoding anywhere in CEA formats, so discarding on the input side is fine.
       releaseInputBuffer(ceaInputBuffer);
     } else {
