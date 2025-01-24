@@ -97,13 +97,21 @@ public final class AudioCapabilitiesReceiver {
     this.routedDevice = routedDevice;
     handler = Util.createHandlerForCurrentOrMainLooper();
     audioDeviceCallback = new AudioDeviceCallback();
-    hdmiAudioPlugBroadcastReceiver = new HdmiAudioPlugBroadcastReceiver();
+
+    // MIREGO - AMZN_CHANGE_BEGIN
+    // Don't listen for audio plug encodings if useSurroundSoundFlag is set.
+    // If useSurroundSoundFlag is set then the platform controls what the
+    // audio output is by using the iSurroundSoundEnabled setting.
+    this.hdmiAudioPlugBroadcastReceiver = !AudioCapabilities.useSurroundSoundFlag(context.getContentResolver()) ? new HdmiAudioPlugBroadcastReceiver() : null;
+    // MIREGO - AMZN_CHANGE_END
+
     Uri externalSurroundSoundUri = AudioCapabilities.getExternalSurroundSoundGlobalSettingUri();
     externalSurroundSoundSettingObserver =
         externalSurroundSoundUri != null
             ? new ExternalSurroundSoundSettingObserver(
                 handler, context.getContentResolver(), externalSurroundSoundUri)
             : null;
+
   }
 
   /**
@@ -260,6 +268,7 @@ public final class AudioCapabilitiesReceiver {
 
     @Override
     public void onChange(boolean selfChange) {
+      super.onChange(selfChange); // MIREGO - AMZN_CHANGE_ONELINE
       updateCurrentAudioCapabilities();
     }
   }
