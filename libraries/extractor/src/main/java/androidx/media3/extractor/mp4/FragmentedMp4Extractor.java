@@ -475,7 +475,7 @@ public class FragmentedMp4Extractor implements Extractor {
     }
     pendingMetadataSampleInfos.clear();
     pendingMetadataSampleBytes = 0;
-    reorderingSeiMessageQueue.flush();
+    reorderingSeiMessageQueue.clear();  //MIREGO: clear the message queue instead of flush, to avoid a race where a pre-seek CC sample gets in the text renderer source stream post-seek
     pendingSeekTimeUs = timeUs;
     containerAtoms.clear();
     enterReadingAtomHeaderState();
