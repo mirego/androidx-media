@@ -185,7 +185,7 @@ public final class ReorderingSeiMessageQueue {
   }
 
   /**
-   * MIREGO: (added) Empties the queue, discarding all messages without consuming them
+   * MIREGO: (added) Clears the queue, discarding all messages without consuming them
    */
   public void clear() {
     while (pendingSeiMessages.size() > 0) {
