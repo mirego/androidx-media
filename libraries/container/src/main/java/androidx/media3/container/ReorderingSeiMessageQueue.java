@@ -159,11 +159,6 @@ public final class ReorderingSeiMessageQueue {
     return result;
   }
 
-  /** Empties the queue, discarding all previously {@linkplain #add added} messages. */
-  public void clear() {
-    pendingSeiMessages.clear();
-  }
-
   /**
    * Empties the queue, passing all messages (least first) to the {@link SeiConsumer} provided
    * during construction.
@@ -188,6 +183,30 @@ public final class ReorderingSeiMessageQueue {
       unusedSampleSeiMessages.push(sampleSeiMessages);
     }
   }
+
+  /** Empties the queue, discarding all previously {@linkplain #add added} messages. */
+//  public void clear() {
+//    pendingSeiMessages.clear();
+//  }
+
+  /**
+   * MIREGO: (added) Clears the queue, discarding all messages without consuming them
+   */
+  public void clear() {
+    while (pendingSeiMessages.size() > 0) {
+      SampleSeiMessages sampleSeiMessages = castNonNull(pendingSeiMessages.poll());
+      for (int i = 0; i < sampleSeiMessages.nalBuffers.size(); i++) {
+        unusedParsableByteArrays.push(sampleSeiMessages.nalBuffers.get(i));
+      }
+      sampleSeiMessages.nalBuffers.clear();
+      if (lastQueuedMessage != null
+          && lastQueuedMessage.presentationTimeUs == sampleSeiMessages.presentationTimeUs) {
+        lastQueuedMessage = null;
+      }
+      unusedSampleSeiMessages.push(sampleSeiMessages);
+    }
+  }
+
 
   /** Holds the presentation timestamp of a sample and the data from associated SEI messages. */
   private static final class SampleSeiMessages implements Comparable<SampleSeiMessages> {
