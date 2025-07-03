@@ -189,6 +189,8 @@ public final class Util {
   public static boolean shouldIgnoreCodecFpsLimitForResolution = false; // MIREGO ADDED
   public static boolean doNotIgnorePerformancePointsForResolutionAndFrameRate = false; // MIREGO ADDED
 
+  public static boolean pendingAudioTrackReleaseShouldBlockNewTrackCreation = false; // MIREGO ADDED
+
   // TEMP DEBUG STUFF (to investigate an infinite buffering issue caused by what seems to be a video codec stall)
   public static int videoLastFeedInputBufferStep = 0;
   public static int audioLastFeedInputBufferStep = 0;
