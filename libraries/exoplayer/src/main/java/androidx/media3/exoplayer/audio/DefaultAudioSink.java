@@ -2468,6 +2468,11 @@ public final class DefaultAudioSink implements AudioSink {
     }
 
     public boolean shouldWaitBeforeRetry() {
+      if (Util.pendingAudioTrackReleaseShouldBlockNewTrackCreation && hasPendingAudioTrackReleases()) {
+        // Wait until other tracks are released to workaround a platform issue
+        return true;
+      }
+
       if (pendingException == null) {
         // No pending exception.
         return false;
