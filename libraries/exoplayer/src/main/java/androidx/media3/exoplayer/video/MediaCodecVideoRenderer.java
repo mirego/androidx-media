@@ -408,7 +408,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
   private long positionUsPrev = 0;
   private long bufferPresentationTimeUsPrev = 0;
   private long frameDurationUs = 0;
-  private long firstFrameRenderedSystemMs = 0;
+  private long firstTunneledFrameRenderedSystemMs = 0;
   private long lastRenderedTunneledBufferPresentationTimeUs = 0;
   private int queuedFrames = 0;
   private long queuedFrameAccumulationStartTimeMs;
@@ -1027,6 +1027,10 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
     }
     maybeSetupTunnelingForFirstFrame();
     consecutiveDroppedFrameCount = 0;
+
+    // MIREGO added following block for tunneled rendering dropped frames detection
+    firstTunneledFrameRenderedSystemMs = 0;
+    lastRenderedTunneledBufferPresentationTimeUs = 0;
   }
 
   @Override
@@ -1068,8 +1072,6 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
     }
 
     // MIREGO added following block
-    firstFrameRenderedSystemMs = 0;
-    lastRenderedTunneledBufferPresentationTimeUs = 0;
     hasNotifiedAvDesyncError = false;
     hasNotifiedAvDesyncSkippedFramesError = false;
     queuedFrames = 0;
@@ -1962,8 +1964,8 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
    */
   private void detectTunnelingDroppedFrames(long presentationTimeUs) {
     long systemMs = System.currentTimeMillis();
-    if (firstFrameRenderedSystemMs == 0) {
-      firstFrameRenderedSystemMs = systemMs;
+    if (firstTunneledFrameRenderedSystemMs == 0) {
+      firstTunneledFrameRenderedSystemMs = systemMs;
     }
 
     if (presentationTimeUs < lastRenderedTunneledBufferPresentationTimeUs) {
@@ -1976,7 +1978,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
     // so if we rendered a frame more than (1 / framerate) later than the previous one, we dropped frame(s)
     if ( (lastRenderedTunneledBufferPresentationTimeUs > 0)
         && (frameDurationUs > 0)
-        && (systemMs - firstFrameRenderedSystemMs > IGNORE_PRIMING_DROPPED_FRAMES_MS)
+        && (systemMs - firstTunneledFrameRenderedSystemMs > IGNORE_PRIMING_DROPPED_FRAMES_MS)
     ) {
       // round to the nearest since timestamps don't have infinite precision (otherwise 0.99999999 of a frame duration would compute as 0 frame)
       int framesElapsed = (int) (((presentationTimeUs - lastRenderedTunneledBufferPresentationTimeUs) + (frameDurationUs / 2)) / frameDurationUs);
