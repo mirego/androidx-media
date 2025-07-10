@@ -408,6 +408,8 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
   private long positionUsPrev = 0;
   private long bufferPresentationTimeUsPrev = 0;
   private long frameDurationUs = 0;
+  private boolean tunneledDroppedFramesDetectionEnabled = false;
+  private long maxQueuedFramePresentationTime = -1;
   private long firstTunneledFrameRenderedSystemMs = 0;
   private long lastRenderedTunneledBufferPresentationTimeUs = 0;
   private int queuedFrames = 0;
@@ -997,6 +999,10 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
 
   @Override
   protected void onPositionReset(long positionUs, boolean joining) throws ExoPlaybackException {
+    // MIREGO disable tunneled dropped frames detection until we get onStarted()
+    tunneledDroppedFramesDetectionEnabled = false;
+    maxQueuedFramePresentationTime = -1;
+
     if (videoSink != null) {
       if (!joining) {
         // Flush the video sink first to ensure it stops reading textures that will be owned by
@@ -1027,10 +1033,6 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
     }
     maybeSetupTunnelingForFirstFrame();
     consecutiveDroppedFrameCount = 0;
-
-    // MIREGO added following block for tunneled rendering dropped frames detection
-    firstTunneledFrameRenderedSystemMs = 0;
-    lastRenderedTunneledBufferPresentationTimeUs = 0;
   }
 
   @Override
@@ -1060,6 +1062,12 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
   @Override
   protected void onStarted() {
     super.onStarted();
+
+    // MIREGO: enable tunneled dropped frames detection
+    firstTunneledFrameRenderedSystemMs = 0;
+    lastRenderedTunneledBufferPresentationTimeUs = 0;
+    tunneledDroppedFramesDetectionEnabled = true;
+
     droppedFrames = 0;
     long elapsedRealtimeMs = getClock().elapsedRealtime();
     droppedFrameAccumulationStartTimeMs = elapsedRealtimeMs;
@@ -1530,11 +1538,16 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
   @Override
   protected void onQueueInputBuffer(DecoderInputBuffer buffer) throws ExoPlaybackException {
 
-    // MIREGO: added
+    // MIREGO: added block for metrics
     queuedFrames++;
     Util.currentQueuedInputBuffers++;
     if (queuedFrames >= NOTIFY_QUEUED_FRAMES_THRESHOLD) {
       maybeNotifyQueuedFrames();
+    }
+
+    // MIREGO: added block to detect dropped frames in tunneled rendering
+    if (buffer.timeUs > maxQueuedFramePresentationTime) {
+      maxQueuedFramePresentationTime = buffer.timeUs;
     }
 
     if (av1SampleDependencyParser != null
@@ -1964,13 +1977,17 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
    */
   private void detectTunnelingDroppedFrames(long presentationTimeUs) {
     long systemMs = System.currentTimeMillis();
+    if (!tunneledDroppedFramesDetectionEnabled || (maxQueuedFramePresentationTime <= 0)) {
+      return;
+    }
+
     if (firstTunneledFrameRenderedSystemMs == 0) {
       firstTunneledFrameRenderedSystemMs = systemMs;
     }
 
-    if (presentationTimeUs < lastRenderedTunneledBufferPresentationTimeUs) {
-      // workaround an issue on a platform where the codec sends us a faulty presentation time
-      // in that case, fake that we got what we expected.
+    // workaround an issue on a platform where the codec sends us a transformed presentation time (could be a systemNanos presentation time)
+    // in that case, fake that we got what we expected.
+    if ((presentationTimeUs < lastRenderedTunneledBufferPresentationTimeUs) || (presentationTimeUs > maxQueuedFramePresentationTime)) {
       presentationTimeUs = lastRenderedTunneledBufferPresentationTimeUs + frameDurationUs;
     }
 
