@@ -477,8 +477,8 @@ public class AdaptiveTrackSelection extends BaseTrackSelection {
     // MIREGO: added block to improve ABR in live. Use a smaller threshold to keep the current level if we have enough buffer
     // the default duration is 25 secs, which is almost impossible to reach in live, given we try to minimize the delta to live edge
     // this prevents the instant quality decrease if we have noise in the metered bandwidth
-    if ((Util.durationThreholdForAbrQualityDecreaseInLiveMs > 0) && (availableDurationUs != C.TIME_UNSET)) {
-      maxDurationForQualityDecreaseUs = min(maxDurationForQualityDecreaseUs, TimeUnit.MILLISECONDS.toMicros(Util.durationThreholdForAbrQualityDecreaseInLiveMs));
+    if ((Util.durationThresholdForAbrQualityDecreaseInLiveMs > 0) && (availableDurationUs != C.TIME_UNSET)) {
+      maxDurationForQualityDecreaseUs = min(maxDurationForQualityDecreaseUs, TimeUnit.MILLISECONDS.toMicros(Util.durationThresholdForAbrQualityDecreaseInLiveMs));
     }
 
     int previousSelectedIndex = selectedIndex;
