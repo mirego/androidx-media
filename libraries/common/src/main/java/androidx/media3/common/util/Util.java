@@ -191,7 +191,7 @@ public final class Util {
 
   public static boolean shouldThrottleMultipleBitrateChanges = false; // MIREGO ADDED
 
-  public static int durationThreholdForAbrQualityDecreaseInLiveMs = 0; // MIREGO ADDED
+  public static int durationThresholdForAbrQualityDecreaseInLiveMs = 0; // MIREGO ADDED
 
   public static boolean pendingAudioTrackReleaseShouldBlockNewTrackCreation = false; // MIREGO ADDED
 
