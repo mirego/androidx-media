@@ -40,6 +40,7 @@ import com.google.common.collect.MultimapBuilder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * A bandwidth based adaptive {@link ExoTrackSelection}, whose selected track is updated to be the
@@ -324,6 +325,13 @@ public class AdaptiveTrackSelection extends BaseTrackSelection {
   // MIREGO START
   private int initialMaxBitrate = Integer.MAX_VALUE;
 
+  private static final long BITRATE_INCREASE_SUCCESS_THRESHOLD_MS = TimeUnit.SECONDS.toMillis(8);
+  private static final long BITRATE_INCREASE_CONSECUTIVE_FAILURE_LIMIT = 5;
+  private static final long BITRATE_INCREASE_COOLDOWN_MS = TimeUnit.SECONDS.toMillis(30);
+  private long lastBitrateIncreaseMs = 0;
+  private int bitrateIncreaseFailureCount = 0;
+  private long bitrateIncreaseCooldownEnd = 0;
+
   public void setInitialMaxBitrate(int maxBitrateBps) {
     initialMaxBitrate = maxBitrateBps;
   }
@@ -464,6 +472,15 @@ public class AdaptiveTrackSelection extends BaseTrackSelection {
       return;
     }
 
+    long maxDurationForQualityDecreaseUs = this.maxDurationForQualityDecreaseUs; // MIREGO added
+
+    // MIREGO: added block to improve ABR in live. Use a smaller threshold to keep the current level if we have enough buffer
+    // the default duration is 25 secs, which is almost impossible to reach in live, given we try to minimize the delta to live edge
+    // this prevents the instant quality decrease if we have noise in the metered bandwidth
+    if ((Util.durationThreholdForAbrQualityDecreaseInLiveMs > 0) && (availableDurationUs != C.TIME_UNSET)) {
+      maxDurationForQualityDecreaseUs = min(maxDurationForQualityDecreaseUs, TimeUnit.MILLISECONDS.toMicros(Util.durationThreholdForAbrQualityDecreaseInLiveMs));
+    }
+
     int previousSelectedIndex = selectedIndex;
     @C.SelectionReason int previousReason = reason;
     int formatIndexOfPreviousChunk =
@@ -501,10 +518,34 @@ public class AdaptiveTrackSelection extends BaseTrackSelection {
 
         //MIREGO
         Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "updateSelectedTrack idealTrack: %d (bitrate %d), but enough buffered duration to defer switch (%d/%d) keep %d",
-            newSelectedIndex, getFormat(newSelectedIndex).bitrate, bufferedDurationUs, minDurationForQualityIncreaseUs, previousSelectedIndex);
+            newSelectedIndex, getFormat(newSelectedIndex).bitrate, bufferedDurationUs, maxDurationForQualityDecreaseUs, previousSelectedIndex);
 
         newSelectedIndex = previousSelectedIndex;
-      } else {
+      }
+
+      // MIREGO: added block to improve ABR in live. Adds a cooldown on increasing bitrate if we fail to sustain the higher rate multiple times in a row
+      if (Util.shouldThrottleMultipleBitrateChanges && (newSelectedIndex != previousSelectedIndex)) {
+        if (selectedFormat.bitrate > currentFormat.bitrate) {
+          if (lastBitrateIncreaseMs > 0) { // 2 consecutive increases, reset the failure count
+            lastBitrateIncreaseMs = nowMs;
+            bitrateIncreaseFailureCount = 0;
+          } else if (nowMs < bitrateIncreaseCooldownEnd) {
+            newSelectedIndex = previousSelectedIndex; // still on cooldown for bitrate increases, do not increase for now
+          } else {
+            lastBitrateIncreaseMs = nowMs;
+          }
+        } else if (lastBitrateIncreaseMs > 0) { // only handle the first decrease, ignore the consecutive ones after
+          if (nowMs > lastBitrateIncreaseMs + BITRATE_INCREASE_SUCCESS_THRESHOLD_MS) { // sustained the new rate long enough
+            bitrateIncreaseCooldownEnd = 0;
+            bitrateIncreaseFailureCount = 0;
+          } else { // if we haven't been able to sustain the new rate for long enough, consider it a failure.
+            if (++bitrateIncreaseFailureCount >= BITRATE_INCREASE_CONSECUTIVE_FAILURE_LIMIT) {
+              bitrateIncreaseCooldownEnd = nowMs + BITRATE_INCREASE_COOLDOWN_MS; // many consecutive failures, cooldown on future retries
+            }
+          }
+          lastBitrateIncreaseMs = 0;
+        }
+
         // MIREGO
         Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "updateSelectedTrack idealTrack: %d bitrate: %d (previous: %d bitrate: %d)",
             newSelectedIndex, getFormat(newSelectedIndex).bitrate, previousSelectedIndex, getFormat(previousSelectedIndex).bitrate);
