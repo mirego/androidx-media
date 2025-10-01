@@ -74,6 +74,8 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
 @UnstableApi
 public class DefaultDashChunkSource implements DashChunkSource {
 
+  private static final String TAG = "DefaultDashChunkSource";
+
   /** {@link DashChunkSource.Factory} for {@link DefaultDashChunkSource} instances. */
   public static final class Factory implements DashChunkSource.Factory {
 
@@ -1062,6 +1064,7 @@ public class DefaultDashChunkSource implements DashChunkSource {
         // The new index continues where the old one ended, with no overlap.
         newSegmentNumShift += oldIndexLastSegmentNum + 1 - newIndexFirstSegmentNum;
       } else if (oldIndexEndTimeUs < newIndexStartTimeUs) {
+        Log.e(TAG, "Manifest error oldIndexEndTimeUs < newIndexStartTimeUs oldIndexStartTimeUs=" + oldIndexStartTimeUs + " oldIndexEndTimeUs=" + oldIndexEndTimeUs + " newIndexStartTimeUs=" + newIndexStartTimeUs);
         // There's a gap between the old index and the new one which means we've slipped behind the
         // live window and can't proceed.
         throw new BehindLiveWindowException();
