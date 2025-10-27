@@ -2352,7 +2352,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
   private void setTunnelPeek(boolean useTunnelPeek) {
     if (Util.SDK_INT >= 33) {
       @Nullable MediaCodecAdapter codec = getCodec();
-      if (getCodec() != null) {
+      if (codec != null) {
         Bundle codecParameters = new Bundle();
         codecParameters.putInt(MediaCodec.PARAMETER_KEY_TUNNEL_PEEK, useTunnelPeek ? 1 : 0);
         Log.d(TAG,  "setTunnelPeek to %d", useTunnelPeek ? 1 : 0);
