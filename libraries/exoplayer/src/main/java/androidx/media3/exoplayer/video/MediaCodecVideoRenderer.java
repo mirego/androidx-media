@@ -206,8 +206,6 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
   private @C.VideoScalingMode int scalingMode;
   private @C.VideoChangeFrameRateStrategy int changeFrameRateStrategy;
 
-  private boolean isUsingTunnelPeek = false; // MIREGO added
-
   private long droppedFrameAccumulationStartTimeMs;
   private int droppedFrames;
   private int consecutiveDroppedFrameCount;
@@ -2358,7 +2356,6 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
         Bundle codecParameters = new Bundle();
         codecParameters.putInt(MediaCodec.PARAMETER_KEY_TUNNEL_PEEK, useTunnelPeek ? 1 : 0);
         Log.d(TAG,  "setTunnelPeek to %d", useTunnelPeek ? 1 : 0);
-        isUsingTunnelPeek = useTunnelPeek;
         codec.setParameters(codecParameters);
       }
     }
