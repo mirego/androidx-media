@@ -224,8 +224,6 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
   private @C.VideoScalingMode int scalingMode;
   private @C.VideoChangeFrameRateStrategy int changeFrameRateStrategy;
 
-  private boolean readyToRenderFirstFrameAfterReset;  // MIREGO added
-
   private long droppedFrameAccumulationStartTimeMs;
   private int droppedFrames;
   private int consecutiveDroppedFrameCount;
@@ -1138,9 +1136,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
       return videoSink.isReady(rendererOtherwiseReady);
     }
     if (rendererOtherwiseReady
-        && (readyToRenderFirstFrameAfterReset  // MIREGO added
-        || getCodec() == null
-        || tunneling)) {
+        && (getCodec() == null || tunneling)) {
       // Not releasing frames.
       return true;
     }
@@ -2517,8 +2513,10 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
       // to not adhere to this contract and need to get the parameter explicitly. See
       // https://github.com/androidx/media/issues/1169.
       Bundle codecParameters = new Bundle();
-      codecParameters.putInt(MediaCodec.PARAMETER_KEY_TUNNEL_PEEK, 1);
+      // MIREGO: use shouldUseTunnelPeek to set PARAMETER_KEY_TUNNEL_PEEK
+      codecParameters.putInt(MediaCodec.PARAMETER_KEY_TUNNEL_PEEK, Util.shouldUseTunnelPeek ? 1 : 0);
       codec.setParameters(codecParameters);
+      Log.d(TAG, "setTunnelPeek to %s", Util.shouldUseTunnelPeek);
     }
   }
 
