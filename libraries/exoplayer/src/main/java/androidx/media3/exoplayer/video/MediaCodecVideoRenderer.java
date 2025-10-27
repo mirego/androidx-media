@@ -206,7 +206,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
   private @C.VideoScalingMode int scalingMode;
   private @C.VideoChangeFrameRateStrategy int changeFrameRateStrategy;
 
-  private boolean readyToRenderFirstFrameAfterReset;  // MIREGO added
+  private boolean isUsingTunnelPeek = false; // MIREGO added
 
   private long droppedFrameAccumulationStartTimeMs;
   private int droppedFrames;
@@ -1047,9 +1047,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
       return videoSink.isReady(rendererOtherwiseReady);
     }
     if (rendererOtherwiseReady
-        && (readyToRenderFirstFrameAfterReset  // MIREGO added
-        || getCodec() == null
-        || tunneling)) {
+        && (getCodec() == null || tunneling)) {
       // Not releasing frames.
       return true;
     }
@@ -2336,6 +2334,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
 
 
   private void maybeSetupTunnelingForFirstFrame() {
+    // MIREGO: added function to set PARAMETER_KEY_TUNNEL_PEEK
+    setTunnelPeek(Util.shouldUseTunnelPeek);
+
     if (!tunneling || Util.SDK_INT < 23) {
       // The first frame notification for tunneling is triggered by onQueueInputBuffer prior to API
       // level 23 and no setup is needed here.
@@ -2347,13 +2348,19 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
       return;
     }
     tunnelingOnFrameRenderedListener = new OnFrameRenderedListenerV23(codec);
+  }
+
+  // MIREGO added function to be able to set PARAMETER_KEY_TUNNEL_PEEK
+  private void setTunnelPeek(boolean useTunnelPeek) {
     if (Util.SDK_INT >= 33) {
-      // This should be the default anyway according to the API contract, but some devices are known
-      // to not adhere to this contract and need to get the parameter explicitly. See
-      // https://github.com/androidx/media/issues/1169.
-      Bundle codecParameters = new Bundle();
-      codecParameters.putInt(MediaCodec.PARAMETER_KEY_TUNNEL_PEEK, 1);
-      codec.setParameters(codecParameters);
+      @Nullable MediaCodecAdapter codec = getCodec();
+      if (getCodec() != null) {
+        Bundle codecParameters = new Bundle();
+        codecParameters.putInt(MediaCodec.PARAMETER_KEY_TUNNEL_PEEK, useTunnelPeek ? 1 : 0);
+        Log.d(TAG,  "setTunnelPeek to %d", useTunnelPeek ? 1 : 0);
+        isUsingTunnelPeek = useTunnelPeek;
+        codec.setParameters(codecParameters);
+      }
     }
   }
 
