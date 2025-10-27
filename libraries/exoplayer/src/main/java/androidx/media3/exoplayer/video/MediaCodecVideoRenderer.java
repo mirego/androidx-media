@@ -2332,9 +2332,6 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
 
 
   private void maybeSetupTunnelingForFirstFrame() {
-    // MIREGO: added function to set PARAMETER_KEY_TUNNEL_PEEK
-    setTunnelPeek(Util.shouldUseTunnelPeek);
-
     if (!tunneling || Util.SDK_INT < 23) {
       // The first frame notification for tunneling is triggered by onQueueInputBuffer prior to API
       // level 23 and no setup is needed here.
@@ -2346,18 +2343,13 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
       return;
     }
     tunnelingOnFrameRenderedListener = new OnFrameRenderedListenerV23(codec);
-  }
 
-  // MIREGO added function to be able to set PARAMETER_KEY_TUNNEL_PEEK
-  private void setTunnelPeek(boolean useTunnelPeek) {
+    // MIREGO: modified to set PARAMETER_KEY_TUNNEL_PEEK
     if (Util.SDK_INT >= 33) {
-      @Nullable MediaCodecAdapter codec = getCodec();
-      if (codec != null) {
         Bundle codecParameters = new Bundle();
-        codecParameters.putInt(MediaCodec.PARAMETER_KEY_TUNNEL_PEEK, useTunnelPeek ? 1 : 0);
-        Log.d(TAG,  "setTunnelPeek to %d", useTunnelPeek ? 1 : 0);
+        codecParameters.putInt(MediaCodec.PARAMETER_KEY_TUNNEL_PEEK, Util.shouldUseTunnelPeek ? 1 : 0);
+        Log.d(TAG,  "setTunnelPeek to %s", Util.shouldUseTunnelPeek);
         codec.setParameters(codecParameters);
-      }
     }
   }
 
