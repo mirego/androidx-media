@@ -2344,15 +2344,15 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
     }
     tunnelingOnFrameRenderedListener = new OnFrameRenderedListenerV23(codec);
 
-    // MIREGO: modified to set PARAMETER_KEY_TUNNEL_PEEK
     if (Util.SDK_INT >= 33) {
       // This should be the default anyway according to the API contract, but some devices are known
       // to not adhere to this contract and need to get the parameter explicitly. See
       // https://github.com/androidx/media/issues/1169.
-        Bundle codecParameters = new Bundle();
-        codecParameters.putInt(MediaCodec.PARAMETER_KEY_TUNNEL_PEEK, Util.shouldUseTunnelPeek ? 1 : 0);
-        codec.setParameters(codecParameters);
-        Log.d(TAG, "setTunnelPeek to %s", Util.shouldUseTunnelPeek);
+      Bundle codecParameters = new Bundle();
+      // MIREGO: use shouldUseTunnelPeek to set PARAMETER_KEY_TUNNEL_PEEK
+      codecParameters.putInt(MediaCodec.PARAMETER_KEY_TUNNEL_PEEK, Util.shouldUseTunnelPeek ? 1 : 0);
+      codec.setParameters(codecParameters);
+      Log.d(TAG, "setTunnelPeek to %s", Util.shouldUseTunnelPeek);
     }
   }
 
