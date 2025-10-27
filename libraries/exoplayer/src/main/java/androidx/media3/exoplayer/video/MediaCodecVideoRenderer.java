@@ -2343,7 +2343,6 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
       return;
     }
     tunnelingOnFrameRenderedListener = new OnFrameRenderedListenerV23(codec);
-
     if (Util.SDK_INT >= 33) {
       // This should be the default anyway according to the API contract, but some devices are known
       // to not adhere to this contract and need to get the parameter explicitly. See
