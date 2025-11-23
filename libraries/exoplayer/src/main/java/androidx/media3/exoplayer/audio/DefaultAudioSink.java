@@ -18,6 +18,7 @@ package androidx.media3.exoplayer.audio;
 import static android.os.Build.VERSION.SDK_INT;
 import static androidx.media3.common.util.Util.constrainValue;
 import static androidx.media3.common.util.Util.msToUs;
+import static androidx.media3.common.util.Util.workaroundAudioVolumePlatformGlitch;
 import static androidx.media3.exoplayer.audio.AudioCapabilities.DEFAULT_AUDIO_CAPABILITIES;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -984,6 +985,15 @@ public final class DefaultAudioSink implements AudioSink {
           // Not yet ready for initialization of a new audio output.
           return false;
         }
+
+        // MIREGO workaround volume issue on buggy platform. It's possible something stays stuck after starting another app on the device. Creating and releasing an audioTrack seems to solve it.
+        if (workaroundAudioVolumePlatformGlitch) {
+          workaroundAudioVolumePlatformGlitch = false;
+          audioOutput.release();
+          audioOutput = null;
+          return false;
+        }
+
         // MIREGO
         Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "handleBuffer pendingConfiguration reusing audio track");
       } catch (InitializationException e) {
