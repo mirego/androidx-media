@@ -20,6 +20,7 @@ import static androidx.media3.common.util.Util.castNonNull;
 import androidx.annotation.Nullable;
 import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
+import androidx.media3.common.util.Log;
 import androidx.media3.common.util.NullableType;
 import androidx.media3.common.util.RunnableFutureTask;
 import androidx.media3.common.util.UnstableApi;
@@ -74,8 +75,9 @@ import java.util.concurrent.Executor;
  *     new DashMediaSource.Factory(cacheDataSourceFactory).createMediaSource(mediaItem);
  * }</pre>
  */
+// MIREGO: made not "final". We need to extend it to access the dataSource and representations
 @UnstableApi
-public final class DashDownloader extends SegmentDownloader<DashManifest> {
+public class DashDownloader extends SegmentDownloader<DashManifest> {
 
   /** A factory for {@linkplain DashDownloader DASH downloaders}. */
   public static final class Factory extends BaseFactory<DashManifest> {
@@ -169,6 +171,8 @@ public final class DashDownloader extends SegmentDownloader<DashManifest> {
 
   private final BaseUrlExclusionList baseUrlExclusionList;
 
+  private static final String TAG = "DashDownloader";
+
   /**
    * @deprecated Use {@link DashDownloader.Factory#create(MediaItem)} instead.
    */
@@ -250,6 +254,10 @@ public final class DashDownloader extends SegmentDownloader<DashManifest> {
             dataSource, adaptationSets.get(j), periodStartUs, periodDurationUs, removing, segments);
       }
     }
+
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "getSegments()  count: %d", segments.size());
+
     return segments;
   }
 
@@ -261,8 +269,14 @@ public final class DashDownloader extends SegmentDownloader<DashManifest> {
       boolean removing,
       ArrayList<Segment> out)
       throws IOException, InterruptedException {
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "addSegmentsForAdaptationSet type: %d", adaptationSet.type);
+
     for (int i = 0; i < adaptationSet.representations.size(); i++) {
       Representation representation = adaptationSet.representations.get(i);
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "addSegmentsForAdaptationSet representation format: %s  url: %s", representation.format, representation.baseUrls);
+
       DashSegmentIndex index;
       try {
         index = getSegmentIndex(dataSource, adaptationSet.type, representation, removing);
@@ -287,10 +301,16 @@ public final class DashDownloader extends SegmentDownloader<DashManifest> {
       @Nullable RangedUri initializationUri = representation.getInitializationUri();
       if (initializationUri != null) {
         out.add(createSegment(representation, baseUrl, periodStartUs, initializationUri));
+
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "addSegmentsForAdaptationSet initSeg: %s", initializationUri);
       }
       @Nullable RangedUri indexUri = representation.getIndexUri();
       if (indexUri != null) {
         out.add(createSegment(representation, baseUrl, periodStartUs, indexUri));
+
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "addSegmentsForAdaptationSet index: %s", indexUri);
       }
       long startPositionInPeriodUs = startPositionUs - periodStartUs;
       long endPositionInPeriodUs =
@@ -312,6 +332,9 @@ public final class DashDownloader extends SegmentDownloader<DashManifest> {
                 baseUrl,
                 periodStartUs + index.getTimeUs(j),
                 index.getSegmentUrl(j)));
+
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "addSegmentsForAdaptationSet seg %d: %s", j, index.getSegmentUrl(j));
       }
     }
   }

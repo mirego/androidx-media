@@ -620,4 +620,14 @@ public final class FrameworkMediaDrm implements ExoMediaDrm {
       }
     }
   }
+
+  // MIREGO
+  public void unprovisionDevice() throws DeniedByServerException {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+      return;
+    }
+
+    byte[] response = "unprovision".getBytes();
+    provideProvisionResponse(response);
+  }
 }

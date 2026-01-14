@@ -30,7 +30,7 @@ import java.util.ArrayDeque;
 /** Base class for subtitle parsers for CEA captions. */
 /* package */ abstract class CeaDecoder implements SubtitleDecoder {
 
-  private static final int NUM_INPUT_BUFFERS = 10;
+  private static final int NUM_INPUT_BUFFERS = 100; // MIREGO increased from 10 to avoid blocking the period transitions
   private static final int NUM_OUTPUT_BUFFERS = 2;
 
   private final ArrayDeque<CeaInputBuffer> availableInputBuffers;
@@ -87,7 +87,8 @@ import java.util.ArrayDeque;
     if (!ceaInputBuffer.isEndOfStream()
         && ceaInputBuffer.timeUs != C.TIME_END_OF_SOURCE
         && outputStartTimeUs != C.TIME_UNSET
-        && ceaInputBuffer.timeUs < outputStartTimeUs) {
+        && ceaInputBuffer.timeUs < outputStartTimeUs
+        && !ceaInputBuffer.isEndOfStream()) { // MIREGO: added !isEndOfStream condition to avoid the buffer signaling the end of stream to be skipped
       // We can start decoding anywhere in CEA formats, so discarding on the input side is fine.
       releaseInputBuffer(ceaInputBuffer);
     } else {

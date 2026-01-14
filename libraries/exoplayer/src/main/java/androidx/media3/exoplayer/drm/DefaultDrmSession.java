@@ -123,6 +123,9 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
   /** The DRM scheme datas, or null if this session uses offline keys. */
   @Nullable public final List<SchemeData> schemeDatas;
 
+  // MIREGO: added to be able to reuse offline sessions with compatible data without messing with the field schemeDatas, that is used to determine if it's an offline key when getting the key request
+  @Nullable public final List<SchemeData> schemeDatasEvenOffline;
+
   private final ExoMediaDrm mediaDrm;
   private final ProvisioningManager provisioningManager;
   private final ReferenceCountListener referenceCountListener;
@@ -202,6 +205,14 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
     } else {
       this.schemeDatas = Collections.unmodifiableList(Assertions.checkNotNull(schemeDatas));
     }
+
+    // MIREGO: added block
+    if (schemeDatas != null) {
+      this.schemeDatasEvenOffline = Collections.unmodifiableList(schemeDatas);
+    } else {
+      this.schemeDatasEvenOffline = null;
+    }
+
     this.keyRequestParameters = keyRequestParameters;
     this.callback = callback;
     this.eventDispatchers = new CopyOnWriteMultiset<>();
@@ -354,6 +365,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
       currentKeyRequest = null;
       currentProvisionRequest = null;
       if (sessionId != null) {
+        Log.d(TAG, "DRM closeSession %s", sessionId); // MIREGO added logs
         mediaDrm.closeSession(sessionId);
         sessionId = null;
       }
@@ -384,6 +396,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
 
     try {
       sessionId = mediaDrm.openSession();
+      Log.d(TAG, "DRM openSession %s", sessionId); // MIREGO added logs
       mediaDrm.setPlayerIdForSession(sessionId, playerId);
       cryptoConfig = mediaDrm.createCryptoConfig(sessionId);
       state = STATE_OPENED;
@@ -551,6 +564,9 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
         || DrmUtil.isFailureToConstructNotProvisionedException(e)) {
       provisioningManager.provisionRequired(this);
     } else {
+      // MIREGO
+      callback.onKeyError(e);
+
       onError(
           e,
           thrownByExoMediaDrm

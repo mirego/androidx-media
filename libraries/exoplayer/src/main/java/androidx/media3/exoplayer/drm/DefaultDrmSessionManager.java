@@ -28,6 +28,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.os.SystemClock;
+import android.util.Base64;
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
 import androidx.media3.common.C;
@@ -53,6 +54,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -326,7 +328,11 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
   private @MonotonicNonNull Looper playbackLooper;
   private @MonotonicNonNull Handler playbackHandler;
   private int mode;
-  @Nullable private byte[] offlineLicenseKeySetId;
+
+  // MIREGO: multiple offline DRM keys.
+  private List<byte[]> offlineLicenseKeySetIdList = Collections.emptyList();
+  private List<String> drmInitDataUidList = Collections.emptyList();
+
   private @MonotonicNonNull PlayerId playerId;
 
   /* package */ @Nullable volatile MediaDrmHandler mediaDrmHandler;
@@ -390,7 +396,31 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
       checkNotNull(offlineLicenseKeySetId);
     }
     this.mode = mode;
-    this.offlineLicenseKeySetId = offlineLicenseKeySetId;
+    // MIREGO: multiple offline DRM keys.
+    this.offlineLicenseKeySetIdList = (offlineLicenseKeySetId != null) ? ImmutableList.of(offlineLicenseKeySetId) : Collections.emptyList();
+    this.drmInitDataUidList = Collections.emptyList();
+  }
+
+  // MIREGO: multiple offline DRM keys. Added function
+  public void setMode(@Mode int mode, List<byte[]> offlineLicenseKeySetIdList, List<String> drmInitDataUidList) {
+    Log.d(TAG, "setMode %d  offlineLicenseKeySetId size=%s", mode, offlineLicenseKeySetIdList.size());
+    checkState(sessions.isEmpty());
+    if (mode == MODE_QUERY || mode == MODE_RELEASE) {
+      checkArgument(!offlineLicenseKeySetIdList.isEmpty());
+    }
+    this.mode = mode;
+    this.offlineLicenseKeySetIdList = offlineLicenseKeySetIdList;
+    this.drmInitDataUidList = drmInitDataUidList;
+  }
+
+  public static String getDrmInitDataUuid(DrmInitData drmInitData) {
+    for (int i = 0; i < drmInitData.schemeDataCount; i++) {
+      SchemeData schemeData = drmInitData.get(i);
+      if (schemeData.matches(C.WIDEVINE_UUID) && schemeData.hasData()) {
+        return Base64.encodeToString(schemeData.data, Base64.DEFAULT);
+      }
+    }
+    return "";
   }
 
   // DrmSessionManager implementation.
@@ -481,7 +511,7 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
     }
 
     @Nullable List<SchemeData> schemeDatas = null;
-    if (offlineLicenseKeySetId == null) {
+    if (offlineLicenseKeySetIdList.isEmpty()) { // MIREGO: multiple offline DRM keys
       schemeDatas = getSchemeDatas(checkNotNull(format.drmInitData), uuid, false);
       if (schemeDatas.isEmpty()) {
         final MissingSchemeDataException error = new MissingSchemeDataException(uuid);
@@ -492,6 +522,10 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
         return new ErrorStateDrmSession(
             new DrmSessionException(error, PlaybackException.ERROR_CODE_DRM_CONTENT_ERROR));
       }
+    } else if (offlineLicenseKeySetIdList.size() > 1) { // MIREGO: multiple offline DRM keys.
+      // we have to select the right session or create a new one with the right drmInitData/key
+      // if we only have 1 key set, just fallback to legacy behavior (use a null schemeData so we always use the same session)
+      schemeDatas = getSchemeDatas(checkNotNull(format.drmInitData), uuid, false);
     }
 
     @Nullable DefaultDrmSession session;
@@ -501,7 +535,7 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
       // Only use an existing session if it has matching init data.
       session = null;
       for (DefaultDrmSession existingSession : sessions) {
-        if (Objects.equals(existingSession.schemeDatas, schemeDatas)) {
+        if (Objects.equals(existingSession.schemeDatasEvenOffline, schemeDatas)) { // MIREGO: multiple offline DRM keys.
           session = existingSession;
           break;
         }
@@ -513,6 +547,7 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
       session =
           createAndAcquireSessionWithRetry(
               schemeDatas,
+              getDrmInitDataUuid(format.drmInitData), // MIREGO: multiple offline DRM keys
               /* isPlaceholderSession= */ false,
               eventDispatcher,
               shouldReleasePreacquiredSessionsBeforeRetrying);
@@ -560,6 +595,7 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
       DefaultDrmSession placeholderDrmSession =
           createAndAcquireSessionWithRetry(
               /* schemeDatas= */ ImmutableList.of(),
+              "", // MIREGO: multiple offline DRM keys
               /* isPlaceholderSession= */ true,
               /* eventDispatcher= */ null,
               shouldReleasePreacquiredSessionsBeforeRetrying);
@@ -572,7 +608,7 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
   }
 
   private boolean canAcquireSession(DrmInitData drmInitData) {
-    if (offlineLicenseKeySetId != null) {
+    if (!offlineLicenseKeySetIdList.isEmpty()) { // MIREGO: multiple offline DRM keys
       // An offline license can be restored so a session can always be acquired.
       return true;
     }
@@ -625,17 +661,18 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
 
   private DefaultDrmSession createAndAcquireSessionWithRetry(
       @Nullable List<SchemeData> schemeDatas,
+      String drmInitDataUid, // MIREGO: multiple offline DRM keys
       boolean isPlaceholderSession,
       @Nullable DrmSessionEventListener.EventDispatcher eventDispatcher,
       boolean shouldReleasePreacquiredSessionsBeforeRetrying) {
     DefaultDrmSession session =
-        createAndAcquireSession(schemeDatas, isPlaceholderSession, eventDispatcher);
+        createAndAcquireSession(schemeDatas, drmInitDataUid, isPlaceholderSession, eventDispatcher); // MIREGO: multiple offline DRM keys
     // If we're short on DRM session resources, first try eagerly releasing all our keepalive
     // sessions and then retry the acquisition.
     if (acquisitionFailedIndicatingResourceShortage(session) && !keepaliveSessions.isEmpty()) {
       releaseAllKeepaliveSessions();
       undoAcquisition(session, eventDispatcher);
-      session = createAndAcquireSession(schemeDatas, isPlaceholderSession, eventDispatcher);
+      session = createAndAcquireSession(schemeDatas, drmInitDataUid, isPlaceholderSession, eventDispatcher); // MIREGO: multiple offline DRM keys
     }
 
     // If the acquisition failed again due to continued resource shortage, and
@@ -651,7 +688,7 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
         releaseAllKeepaliveSessions();
       }
       undoAcquisition(session, eventDispatcher);
-      session = createAndAcquireSession(schemeDatas, isPlaceholderSession, eventDispatcher);
+      session = createAndAcquireSession(schemeDatas, drmInitDataUid, isPlaceholderSession, eventDispatcher); // MIREGO: multiple offline DRM keys
     }
     return session;
   }
@@ -666,7 +703,7 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
   }
 
   /**
-   * Undoes the acquisitions from {@link #createAndAcquireSession(List, boolean,
+   * Undoes the acquisitions from {@link #createAndAcquireSession(List, int, boolean,
    * DrmSessionEventListener.EventDispatcher)}.
    */
   private void undoAcquisition(
@@ -705,11 +742,29 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
    */
   private DefaultDrmSession createAndAcquireSession(
       @Nullable List<SchemeData> schemeDatas,
+      String drmInitDataUid, // MIREGO: multiple offline DRM keys
       boolean isPlaceholderSession,
       @Nullable DrmSessionEventListener.EventDispatcher eventDispatcher) {
     checkNotNull(exoMediaDrm);
     // Placeholder sessions should always play clear samples without keys.
     boolean playClearSamplesWithoutKeys = this.playClearSamplesWithoutKeys | isPlaceholderSession;
+
+    // MIREGO: multiple offline DRM keys. Added block to get the right keySetId
+    byte[] offlineLicenseKeySetId = null;
+    if (offlineLicenseKeySetIdList.size() == 1) { // Keep legacy behavior with single offline key (just use it)
+      offlineLicenseKeySetId = offlineLicenseKeySetIdList.get(0);
+    } else if (!offlineLicenseKeySetIdList.isEmpty()){ //multiple offline DRM keys. Find the right keyId from the drmInitData hash
+      int index = drmInitDataUidList.indexOf(drmInitDataUid);
+      if (index >= 0) {
+        offlineLicenseKeySetId = offlineLicenseKeySetIdList.get(index);
+      } else {  // oops, we haven't found the drmInitData hash. We might as well fallback to the first key.
+        Log.e(TAG,
+            new PlaybackException("Offline Drm hash code not found. Trying first available key", new RuntimeException(),
+                PlaybackException.ERROR_CODE_OFFLINE_DRM_HASH_CODE_NOT_FOUND));
+        offlineLicenseKeySetId = offlineLicenseKeySetIdList.get(0);
+      }
+    }
+
     DefaultDrmSession session =
         new DefaultDrmSession(
             uuid,
@@ -849,6 +904,9 @@ public class DefaultDrmSessionManager implements DrmSessionManager {
 
     @Override
     public void onProvisionError(Exception error, boolean thrownByExoMediaDrm) {
+      // MIREGO
+      callback.onProvisionError(error);
+
       provisioningSession = null;
       ImmutableList<DefaultDrmSession> sessionsToNotify =
           ImmutableList.copyOf(sessionsAwaitingProvisioning);

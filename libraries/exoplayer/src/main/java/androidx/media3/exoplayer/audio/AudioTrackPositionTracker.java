@@ -32,7 +32,9 @@ import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.media3.common.C;
+import androidx.media3.common.PlaybackException;
 import androidx.media3.common.util.Clock;
+import androidx.media3.common.util.Log;
 import androidx.media3.common.util.Util;
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
@@ -163,6 +165,8 @@ import java.lang.reflect.Method;
   private static final int MIN_PLAYHEAD_OFFSET_SAMPLE_INTERVAL_US = 30_000;
   private static final int MIN_LATENCY_SAMPLE_INTERVAL_US = 50_0000;
 
+  private static final String TAG = "AudioTrackPosTracker"; /* MIREGO */
+
   private final Listener listener;
   private final long[] playheadOffsets;
 
@@ -201,6 +205,9 @@ import java.lang.reflect.Method;
   // Results from the previous call to getCurrentPositionUs.
   private long lastPositionUs;
   private long lastSystemTimeUs;
+
+  private long waitingForHeadResetTimeMs = 0;  // MIREGO for error reporting
+  private boolean waitingForHeadResetTimeoutErrorSent = false;
 
   /**
    * Whether to expect a raw playback head reset.
@@ -303,6 +310,10 @@ import java.lang.reflect.Method;
             ? audioTimestampPoller.getTimestampPositionUs(systemTimeUs, audioTrackPlaybackSpeed)
             : getPlaybackHeadPositionEstimateUs(systemTimeUs);
 
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE4, TAG, "getCurrentPositionUs useGetTimestampMode: %b  systemTimeUs: %d  positionUs: %d  speed: %f",
+          useGetTimestampMode, systemTimeUs, positionUs, audioTrackPlaybackSpeed);
+
     int audioTrackPlayState = audioTrack.getPlayState();
     if (audioTrackPlayState == PLAYSTATE_PLAYING) {
       if (useGetTimestampMode || !audioTimestampPoller.isWaitingForAdvancingTimestamp()) {
@@ -354,6 +365,9 @@ import java.lang.reflect.Method;
       maybeTriggerOnPositionAdvancingCallback(positionUs);
     }
 
+    //Mirego
+    Log.v(Log.LOG_LEVEL_VERBOSE4, TAG, "getCurrentPositionUs: %d (useGetTimestampMode: %s)", positionUs, useGetTimestampMode);
+
     return positionUs;
   }
 
@@ -386,6 +400,7 @@ import java.lang.reflect.Method;
       if (playState == PLAYSTATE_PAUSED) {
         // We force an underrun to pause the track, so don't notify the listener in this case.
         hasData = false;
+        waitingForHeadResetTimeMs = 0; // MIREGO error reporting
         return false;
       }
 
@@ -393,9 +408,22 @@ import java.lang.reflect.Method;
       // position for a short time after is has been released. Avoid writing data until the playback
       // head position actually returns to zero.
       if (playState == PLAYSTATE_STOPPED && getPlaybackHeadPosition() == 0) {
+
+        // MIREGO: added ERROR_CODE_AUDIO_WAITING_FOR_HEAD_RESET error
+        long now = System.currentTimeMillis();
+        if (waitingForHeadResetTimeMs == 0) {
+          waitingForHeadResetTimeMs = now;
+        } else if (now - waitingForHeadResetTimeMs > 2000 && !waitingForHeadResetTimeoutErrorSent){
+          waitingForHeadResetTimeoutErrorSent = true;
+          Log.e(TAG, new PlaybackException("Audio track head position taking too long to reset ",
+              new RuntimeException(), PlaybackException.ERROR_CODE_AUDIO_WAITING_FOR_HEAD_POSITION_RESET));
+        }
+
         return false;
       }
     }
+    waitingForHeadResetTimeMs = 0; // MIREGO error reporting
+    waitingForHeadResetTimeoutErrorSent = false;
 
     boolean emitUnderrun;
     if (SDK_INT >= 24) {
@@ -538,6 +566,8 @@ import java.lang.reflect.Method;
       for (int i = 0; i < playheadOffsetCount; i++) {
         smoothedPlayheadOffsetUs += playheadOffsets[i] / playheadOffsetCount;
       }
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE4, TAG,"maybeSampleSyncParams offset: %d us smoothed: %d us", playbackPositionUs - systemTimeUs, smoothedPlayheadOffsetUs);
     }
 
     if (needsPassthroughWorkarounds) {
@@ -551,6 +581,11 @@ import java.lang.reflect.Method;
     checkNotNull(this.audioTimestampPoller)
         .maybePollTimestamp(
             systemTimeUs, audioTrackPlaybackSpeed, getPlaybackHeadPositionEstimateUs(systemTimeUs));
+  }
+
+  // MIREGO
+  private long framesToDurationUs(long frameCount) {
+    return (frameCount * C.MICROS_PER_SECOND) / outputSampleRate;
   }
 
   private void maybeUpdateLatency(long systemTimeUs) {
@@ -713,6 +748,15 @@ import java.lang.reflect.Method;
         sumRawPlaybackHeadPosition += this.rawPlaybackHeadPosition;
         expectRawPlaybackHeadReset = false;
       } else {
+        // MIREGO: workaround issue experienced on a low performance device where the audio track reports a
+        // rawPlaybackHeadPosition of 0 for a few seconds, before getting back to normal (might be stopped in native, but java layer lagging)
+        // we have to avoid incrementing the rawPlaybackHeadWrapCount, otherwise all the remaining timestamps will get rejected.
+        // If after 4GBs of data, we happen to wrap exactly at the position 0, then it will take a few more seconds before getting
+        // a timestamp update, which has no impact
+        if (rawPlaybackHeadPosition == 0) {
+          return;
+        }
+
         // The value must have wrapped around.
         rawPlaybackHeadWrapCount++;
       }

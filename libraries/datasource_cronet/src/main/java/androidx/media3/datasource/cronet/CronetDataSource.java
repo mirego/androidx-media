@@ -29,6 +29,7 @@ import androidx.media3.common.PlaybackException;
 import androidx.media3.common.util.Assertions;
 import androidx.media3.common.util.Clock;
 import androidx.media3.common.util.ConditionVariable;
+import androidx.media3.common.util.Log;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.common.util.Util;
 import androidx.media3.datasource.BaseDataSource;
@@ -77,6 +78,7 @@ import org.chromium.net.UrlResponseInfo;
  */
 public class CronetDataSource extends BaseDataSource implements HttpDataSource {
 
+  // MIREGO: Add tag for logs
   private static final String TAG = "CronetDataSource";
 
   static {
@@ -606,11 +608,16 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
             getStatus(urlRequest));
       } else if (!connectionOpened) {
         // The timeout was reached before the connection was opened.
-        throw new OpenException(
+
+        // MIREGO START
+        final OpenException openException = new OpenException(
             new SocketTimeoutException(),
             dataSpec,
             PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
             getStatus(urlRequest));
+        Log.e(TAG, "open()", openException);
+        throw openException;
+        // MIREGO END
       }
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
@@ -988,6 +995,9 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
       if (e instanceof HttpDataSourceException) {
         throw (HttpDataSourceException) e;
       } else {
+        // MIREGO
+        Log.e(TAG, "skipFully() ", e);
+
         throw new OpenException(
             e,
             dataSpec,
@@ -1061,10 +1071,17 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
 
     if (exception != null) {
       if (exception instanceof HttpDataSourceException) {
+        // MIREGO
+        Log.e(TAG, "readInternal() ", exception);
+
         throw (HttpDataSourceException) exception;
       } else {
-        throw HttpDataSourceException.createForIOException(
+        // MIREGO START
+        final HttpDataSourceException ioException = HttpDataSourceException.createForIOException(
             exception, dataSpec, HttpDataSourceException.TYPE_READ);
+        Log.e(TAG, "readInternal() ", ioException);
+        throw ioException;
+        // MIREGO END
       }
     }
   }

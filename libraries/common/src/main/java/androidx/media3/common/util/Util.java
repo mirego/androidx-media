@@ -184,6 +184,31 @@ public final class Util {
   /** An empty byte array. */
   @UnstableApi public static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
 
+  // MIREGO
+  public static boolean shouldWorkaroundAudioSampleRateDataBug = false;
+  public static int audioVideoDeltaToLogErrorMs = 750;
+  public static boolean shouldIgnoreCodecFpsLimitForResolution = false; // MIREGO ADDED
+  public static boolean doNotIgnorePerformancePointsForResolutionAndFrameRate = false; // MIREGO ADDED
+
+  public static boolean shouldThrottleMultipleBitrateChanges = false; // MIREGO ADDED
+
+  public static int durationThresholdForAbrQualityDecreaseInLiveMs = 0; // MIREGO ADDED
+
+  public static boolean pendingAudioTrackReleaseShouldBlockNewTrackCreation = false; // MIREGO ADDED
+
+  public static boolean shouldUseTunnelPeek = false; // MIREGO ADDED
+
+  public static boolean workaroundAudioVolumePlatformGlitch = false;
+
+  // TEMP DEBUG STUFF (to investigate an infinite buffering issue caused by what seems to be a video codec stall)
+  public static int videoLastFeedInputBufferStep = 0;
+  public static int audioLastFeedInputBufferStep = 0;
+  public static int videoLastDrainOutputBufferStep = 0;
+  public static int audioLastDrainOutputBufferStep = 0;
+  public static int currentQueuedInputBuffers = 0;
+  public static int currentProcessedOutputBuffers = 0;
+  public static long waitingForDecodedVideoBufferTimeMs = 0;
+
   /** An empty long array. */
   @UnstableApi public static final long[] EMPTY_LONG_ARRAY = new long[0];
 

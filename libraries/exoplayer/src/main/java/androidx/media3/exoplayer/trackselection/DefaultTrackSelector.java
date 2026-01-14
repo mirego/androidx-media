@@ -2413,6 +2413,17 @@ public class DefaultTrackSelector extends MappingTrackSelector
   private AudioAttributes audioAttributes;
   private @MonotonicNonNull Boolean deviceIsTV;
 
+  // MIREGO added
+  private boolean isTunnelingEffectivelyEnabled = false;
+  public boolean isTunnelingEffectivelyEnabled() {
+    return isTunnelingEffectivelyEnabled;
+  }
+
+  // MIREGO: when we create a new track selection, we set that max to adaptive video tracks to limit their initial adaptive selection
+  // since selection is made for every period, that number has to be set initially in the playback, and then reset by the app once the playback has started
+  // this value is directly set by the sub class
+  protected int initialMaxBitrate = 0;
+
   /**
    * @param context Any {@link Context}.
    */
@@ -2650,6 +2661,15 @@ public class DefaultTrackSelector extends MappingTrackSelector
       @C.TrackType int rendererType = mappedTrackInfo.getRendererType(i);
       boolean forceRendererDisabled =
           parameters.getRendererDisabled(i) || parameters.disabledTrackTypes.contains(rendererType);
+
+      // MIREGO START: added for starting bitrate
+      if ( (initialMaxBitrate != 0) && (rendererType == C.TRACK_TYPE_VIDEO) && (rendererTrackSelections[i] instanceof AdaptiveTrackSelection)) {
+        AdaptiveTrackSelection adaptiveSelection = (AdaptiveTrackSelection) rendererTrackSelections[i];
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "Setting initial max bitrate to video adaptive track: %d", initialMaxBitrate);
+        adaptiveSelection.setInitialMaxBitrate(initialMaxBitrate);
+      }
+      // MIREGO END
+
       boolean rendererEnabled =
           !forceRendererDisabled
               && (mappedTrackInfo.getRendererType(i) == C.TRACK_TYPE_NONE
@@ -2658,9 +2678,12 @@ public class DefaultTrackSelector extends MappingTrackSelector
     }
 
     // Configure audio and video renderers to use tunneling if appropriate.
+    // MIREGO: set isTunnelingEffectivelyEnabled
     if (parameters.tunnelingEnabled) {
-      maybeConfigureRenderersForTunneling(
+      isTunnelingEffectivelyEnabled = maybeConfigureRenderersForTunneling(
           mappedTrackInfo, rendererFormatSupports, rendererConfigurations, rendererTrackSelections);
+    } else {
+      isTunnelingEffectivelyEnabled = false;
     }
 
     // Configure audio renderer to use offload if appropriate.
@@ -3057,7 +3080,11 @@ public class DefaultTrackSelector extends MappingTrackSelector
                   if (trackInfo.isCompatibleForAdaptationWith(otherTrackInfo)) {
                     selection.add(otherTrackInfo);
                     usedTrackInSelection[i] = true;
+                  } else { // MIREGO ADDED else block
+                    Log.d(TAG, "Track %d with format %s not added to adaptive group because it's not compatible with track %d (%s)", i, otherTrackInfo.format, trackIndex, trackInfo.format);
                   }
+                } else { // MIREGO ADDED else block
+                  Log.d(TAG, "Track %d with format %s not added to adaptive group because it's not eligible", i, otherTrackInfo.format);
                 }
               }
             }
@@ -3206,7 +3233,8 @@ public class DefaultTrackSelector extends MappingTrackSelector
    *     ones that enable tunneling as a result of this call.
    * @param trackSelections The renderer track selections.
    */
-  private static void maybeConfigureRenderersForTunneling(
+  // MIREGO: returns result
+  private static boolean maybeConfigureRenderersForTunneling(
       MappedTrackInfo mappedTrackInfo,
       @Capabilities int[][][] rendererFormatSupports,
       @NullableType RendererConfiguration[] rendererConfigurations,
@@ -3248,6 +3276,8 @@ public class DefaultTrackSelector extends MappingTrackSelector
       rendererConfigurations[tunnelingAudioRendererIndex] = tunnelingRendererConfiguration;
       rendererConfigurations[tunnelingVideoRendererIndex] = tunnelingRendererConfiguration;
     }
+
+    return enableTunneling;
   }
 
   /**
@@ -3731,12 +3761,19 @@ public class DefaultTrackSelector extends MappingTrackSelector
         return SELECTION_ELIGIBILITY_NO;
       }
       if (!isFormatSupported(rendererSupport, parameters.exceedRendererCapabilitiesIfNecessary)) {
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "VideoTrackInfo check eligibility format: %s returns SELECTION_ELIGIBILITY_NO (not supported)", format);
+
         return SELECTION_ELIGIBILITY_NO;
       }
       if (!isWithinMaxConstraints && !parameters.exceedVideoConstraintsIfNecessary) {
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "VideoTrackInfo check eligibility format: %s returns SELECTION_ELIGIBILITY_NO (exceeds max)", format);
+
         return SELECTION_ELIGIBILITY_NO;
       }
-      return isFormatSupported(rendererSupport, /* allowExceedsCapabilities= */ false)
+
+      int result = isFormatSupported(rendererSupport, /* allowExceedsCapabilities= */ false)
               && isWithinMinConstraints
               && isWithinMaxConstraints
               && format.bitrate != Format.NO_VALUE
@@ -3745,6 +3782,12 @@ public class DefaultTrackSelector extends MappingTrackSelector
               && (rendererSupport & requiredAdaptiveSupport) != 0
           ? SELECTION_ELIGIBILITY_ADAPTIVE
           : SELECTION_ELIGIBILITY_FIXED;
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "VideoTrackInfo check eligibility can be adaptive = %s format: %s: isWithinMinConstraints = %s isWithinMaxConstraints = %s",
+          result == SELECTION_ELIGIBILITY_ADAPTIVE, format, isWithinMinConstraints, isWithinMinConstraints);
+
+      return result;
     }
 
     private static int compareNonQualityPreferences(VideoTrackInfo info1, VideoTrackInfo info2) {

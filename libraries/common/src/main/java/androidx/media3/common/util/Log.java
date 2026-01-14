@@ -22,6 +22,7 @@ import androidx.annotation.GuardedBy;
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
 import androidx.annotation.Size;
+import androidx.media3.common.PlaybackException;
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -43,8 +44,21 @@ public final class Log {
   @Documented
   @Retention(RetentionPolicy.SOURCE)
   @Target(TYPE_USE)
-  @IntDef({LOG_LEVEL_ALL, LOG_LEVEL_INFO, LOG_LEVEL_WARNING, LOG_LEVEL_ERROR, LOG_LEVEL_OFF})
+  @IntDef({LOG_LEVEL_ALL, LOG_LEVEL_INFO, LOG_LEVEL_WARNING, LOG_LEVEL_ERROR, LOG_LEVEL_OFF, LOG_LEVEL_VERBOSE1, LOG_LEVEL_VERBOSE2, LOG_LEVEL_VERBOSE3, LOG_LEVEL_VERBOSE4})
   public @interface LogLevel {}
+
+  /**
+   * MIREGO added verbose
+   * Those are expected to flood the logcat
+   * The higher the number, the more logs you get
+   * Try to use the importance and frequency to determine the level
+   * Higher importance: lower verbose level
+   * Higher frequency: higher verbose level
+   */
+  public static final int LOG_LEVEL_VERBOSE4 = -4;
+  public static final int LOG_LEVEL_VERBOSE3 = -3;
+  public static final int LOG_LEVEL_VERBOSE2 = -2;
+  public static final int LOG_LEVEL_VERBOSE1 = -1;
 
   /** Log level to log all messages. */
   public static final int LOG_LEVEL_ALL = 0;
@@ -71,6 +85,10 @@ public final class Log {
     /** The default instance logging to {@link android.util.Log}. */
     Logger DEFAULT =
         new Logger() {
+          @Override //MIREGO: added
+          public void v(int level, String tag, String message) {
+            android.util.Log.v(tag, message);
+          }
           @Override
           public void d(String tag, String message, @Nullable Throwable throwable) {
             android.util.Log.d(tag, appendThrowableString(message, throwable));
@@ -90,7 +108,21 @@ public final class Log {
           public void e(String tag, String message, @Nullable Throwable throwable) {
             android.util.Log.e(tag, appendThrowableString(message, throwable));
           }
+
+          // MIREGO added
+          @Override
+          public void e(String tag, Exception e) {
+            android.util.Log.e(tag, e.toString());
+          }
         };
+
+    /**
+     * MIREGO ADDED: Logs a verbose-level message.
+     *
+     * @param tag The tag of the message.
+     * @param message The message.
+     */
+    void v(int level, String tag, String message);
 
     /**
      * Logs a debug-level message with an optional associated {@link Throwable}.
@@ -127,6 +159,14 @@ public final class Log {
      * @param throwable The {@link Throwable} associated with the message, or null if not specified.
      */
     void e(String tag, String message, @Nullable Throwable throwable);
+
+    /** MIREGO added
+     * Logs an error-level exception.
+     *
+     * @param tag The tag of the message.
+     * @param exception The exception.
+     */
+    void e(String tag, Exception exception);
   }
 
   private static final Object lock = new Object();
@@ -162,6 +202,25 @@ public final class Log {
   }
 
   /**
+   * @see android.util.Log#v(String, String)
+   */
+  @Pure
+  public static void v(int level, @Size(max = 23) String tag, String message) {
+    //intended to not lock here. I don't see the point.
+    if (logLevel <= level) {
+      logger.v(level, tag, message);
+    }
+  }
+
+  @Pure
+  public static void v(int level, @Size(max = 23) String tag, String msgFormat, Object... msgArgs) {
+    //intended to not lock here. I don't see the point.
+    if (logLevel <= level) {
+      logger.v(level, tag, String.format(msgFormat, msgArgs));
+    }
+  }
+
+  /**
    * Sets whether stack traces of {@link Throwable}s will be logged to logcat. Stack trace logging
    * is enabled by default.
    *
@@ -184,6 +243,14 @@ public final class Log {
     }
   }
 
+  // MIREGO added for convenience
+  @Pure
+  public static void d(@Size(max = 23) String tag, String msgFormat, Object... msgArgs) {
+    if (logLevel <= LOG_LEVEL_ALL) {
+      logger.d(tag, String.format(msgFormat, msgArgs), null);
+    }
+  }
+
   /**
    * Logs a debug-level message.
    *
@@ -193,7 +260,7 @@ public final class Log {
   @Pure
   public static void d(@Size(max = 23) String tag, String message) {
     synchronized (lock) {
-      if (logLevel == LOG_LEVEL_ALL) {
+      if (logLevel <= LOG_LEVEL_ALL) {
         logger.d(tag, message, /* throwable= */ null);
       }
     }
@@ -288,6 +355,16 @@ public final class Log {
     synchronized (lock) {
       if (logLevel <= LOG_LEVEL_ERROR) {
         logger.e(tag, message, /* throwable= */ null);
+      }
+    }
+  }
+
+  // MIREGO added
+  @Pure
+  public static void e(@Size(max = 23) String tag, Exception e) {
+    synchronized (lock) {
+      if (logLevel <= LOG_LEVEL_ERROR) {
+        logger.e(tag, e);
       }
     }
   }

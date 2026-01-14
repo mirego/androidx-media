@@ -553,9 +553,15 @@ public class ChunkSampleStream<T extends ChunkSource>
     LoadErrorInfo loadErrorInfo =
         new LoadErrorInfo(loadEventInfo, mediaLoadData, error, errorCount);
 
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "onLoadError %s", error);
+
     @Nullable LoadErrorAction loadErrorAction = null;
     if (chunkSource.onChunkLoadError(
         loadable, cancelable, loadErrorInfo, loadErrorHandlingPolicy)) {
+      //MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "onChunkLoadError chunkSource.onChunkLoadError cancelable: %s", cancelable);
+
       if (cancelable) {
         loadErrorAction = Loader.DONT_RETRY;
         if (isMediaChunk) {
@@ -573,6 +579,10 @@ public class ChunkSampleStream<T extends ChunkSource>
     if (loadErrorAction == null) {
       // The load was not cancelled. Either the load must be retried or the error propagated.
       long retryDelayMs = loadErrorHandlingPolicy.getRetryDelayMsFor(loadErrorInfo);
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "onChunkLoadError loadErrorAction null retryDelayMs: %d", retryDelayMs);
+
       loadErrorAction =
           retryDelayMs != C.TIME_UNSET
               ? Loader.createRetryAction(/* resetErrorCount= */ false, retryDelayMs)
@@ -580,6 +590,10 @@ public class ChunkSampleStream<T extends ChunkSource>
     }
 
     boolean canceled = !loadErrorAction.isRetry();
+
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "onChunkLoadError loadErrorAction canceled: %s", canceled);
+
     mediaSourceEventDispatcher.loadError(
         loadEventInfo,
         loadable.type,
@@ -663,8 +677,15 @@ public class ChunkSampleStream<T extends ChunkSource>
     } else if (loadable instanceof InitializationChunk) {
       ((InitializationChunk) loadable).init(chunkOutput);
     }
+
     loader.startLoading(
         loadable, this, loadErrorHandlingPolicy.getMinimumLoadableRetryCount(loadable.type));
+
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "trackType: %d  uri: %s  chunk: %s", primaryTrackType, loadable.dataSpec.uri, loadable);
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG,"loadStarted (type: %d): startTime: %d endTime: %d duration: %d  (%s)",
+        loadable.type, loadable.startTimeUs / 1000, loadable.endTimeUs / 1000, (loadable.endTimeUs - loadable.startTimeUs) / 1000, loadable.dataSpec.uri);
+
     return true;
   }
 

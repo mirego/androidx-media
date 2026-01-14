@@ -112,6 +112,11 @@ public final class HttpMediaDrmCallback implements MediaDrmCallback {
     }
   }
 
+  // MIREGO
+  public Map<String, String> getKeyRequestProperties() {
+    return keyRequestProperties;
+  }
+
   @Override
   public byte[] executeProvisionRequest(UUID uuid, ProvisionRequest request)
       throws MediaDrmCallbackException {
@@ -126,7 +131,20 @@ public final class HttpMediaDrmCallback implements MediaDrmCallback {
 
   @Override
   public byte[] executeKeyRequest(UUID uuid, KeyRequest request) throws MediaDrmCallbackException {
+    // MIREGO
+    return executeKeyRequest(uuid, request, null);
+  }
+
+  // MIREGO
+  public byte[] executeKeyRequest(UUID uuid, KeyRequest request,
+      @Nullable Map<String, String> keyRequestPropertiesOverride) throws MediaDrmCallbackException {
     String url = request.getLicenseServerUrl();
+
+    // MIREGO
+    Map<String, String> keyRequestProperties = keyRequestPropertiesOverride != null ?
+        keyRequestPropertiesOverride :
+        this.keyRequestProperties;
+
     if (forceDefaultLicenseUrl || TextUtils.isEmpty(url)) {
       url = defaultLicenseUrl;
     }
@@ -159,4 +177,5 @@ public final class HttpMediaDrmCallback implements MediaDrmCallback {
         /* httpBody= */ request.getData(),
         requestProperties);
   }
+  // END MIREGO
 }

@@ -32,6 +32,7 @@ import androidx.media3.common.Format;
 import androidx.media3.common.Metadata;
 import androidx.media3.common.MimeTypes;
 import androidx.media3.common.ParserException;
+import androidx.media3.common.PlaybackException;
 import androidx.media3.common.util.CodecSpecificDataUtil;
 import androidx.media3.common.util.Log;
 import androidx.media3.common.util.NullableType;
@@ -2200,6 +2201,13 @@ public final class BoxParser {
         parent.setPosition(Mp4Box.HEADER_SIZE + childPosition);
         out.format =
             Ac3Util.parseEAc3AnnexFFormat(parent, Integer.toString(trackId), language, drmInitData);
+
+        // MIREGO added workaround for stream data issue where sample rate is inconsistent
+        if (Util.shouldWorkaroundAudioSampleRateDataBug && (out.format.sampleRate != 48000) && (sampleRate == 48000)) {
+          out.format = out.format.buildUpon().setSampleRate(sampleRate).build();
+          Log.e(TAG, new PlaybackException("Inconsistent audio sample rate", new RuntimeException(), PlaybackException.ERROR_CODE_AUDIO_TRACK_INCONSISTENT_SAMPLE_RATE));
+        }
+
       } else if (childAtomType == Mp4Box.TYPE_dac4) {
         parent.setPosition(Mp4Box.HEADER_SIZE + childPosition);
         out.format =
@@ -2309,6 +2317,11 @@ public final class BoxParser {
       }
 
       out.format = formatBuilder.build();
+    }
+
+    // MIREGO
+    if (out.format != null) {
+      Log.v(Log.LOG_LEVEL_VERBOSE2, "AtomParsers", "%s", out.format);
     }
   }
 

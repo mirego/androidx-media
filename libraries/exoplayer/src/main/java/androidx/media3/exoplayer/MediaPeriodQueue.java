@@ -31,6 +31,7 @@ import androidx.media3.common.Timeline;
 import androidx.media3.common.util.Assertions;
 import androidx.media3.common.util.HandlerWrapper;
 import androidx.media3.exoplayer.ExoPlayer.PreloadConfiguration;
+import androidx.media3.common.util.Log;
 import androidx.media3.exoplayer.analytics.AnalyticsCollector;
 import androidx.media3.exoplayer.source.MediaPeriod;
 import androidx.media3.exoplayer.source.MediaSource.MediaPeriodId;
@@ -67,7 +68,11 @@ import java.util.List;
    *       original timestamp of the media is still visible.
    * </ul>
    */
-  public static final long INITIAL_RENDERER_POSITION_OFFSET_US = 1_000_000_000_000L;
+  // MIREGO decreased significantly, was creating an issue with an AC3 codec
+  public static final long INITIAL_RENDERER_POSITION_OFFSET_US = 1_000_000_000L;
+
+  //MIREGO: added
+  private static final String TAG = "MediaCodecRenderer";
 
   /**
    * Limits the maximum number of periods to buffer ahead of the current playing period. The
@@ -393,6 +398,9 @@ import java.util.List;
    * @return The updated reading period holder.
    */
   public MediaPeriodHolder advanceReadingPeriod() {
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "advanceReadingPeriod()");
+
     if (prewarming == reading) {
       prewarming = checkStateNotNull(reading).getNext();
     }
@@ -420,6 +428,9 @@ import java.util.List;
    */
   @Nullable
   public MediaPeriodHolder advancePlayingPeriod() {
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "advancePlayingPeriod()");
+
     if (playing == null) {
       return null;
     }
@@ -516,6 +527,9 @@ import java.util.List;
 
   /** Clears the queue. */
   public void clear() {
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "clear()");
+
     if (length == 0) {
       return;
     }

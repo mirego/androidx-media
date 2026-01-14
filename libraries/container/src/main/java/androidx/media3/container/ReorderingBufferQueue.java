@@ -162,8 +162,26 @@ public final class ReorderingBufferQueue {
   }
 
   /** Empties the queue, discarding all previously {@linkplain #add added} buffers. */
+//  public void clear() {
+//    pendingBuffers.clear();
+//  }
+
+  /**
+   * MIREGO: (added) Clears the queue, discarding all messages without consuming them
+   */
   public void clear() {
-    pendingBuffers.clear();
+    while (!pendingBuffers.isEmpty()) {
+      BuffersWithTimestamp buffersWithTimestamp = castNonNull(pendingBuffers.poll());
+      for (int i = 0; i < buffersWithTimestamp.nalBuffers.size(); i++) {
+        unusedParsableByteArrays.push(buffersWithTimestamp.nalBuffers.get(i));
+      }
+      buffersWithTimestamp.nalBuffers.clear();
+      if (lastQueuedBuffer != null
+          && lastQueuedBuffer.presentationTimeUs == buffersWithTimestamp.presentationTimeUs) {
+        lastQueuedBuffer = null;
+      }
+      unusedBuffersWithTimestamp.push(buffersWithTimestamp);
+    }
   }
 
   /**
