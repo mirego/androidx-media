@@ -18,6 +18,7 @@ package androidx.media3.exoplayer.audio;
 import static android.os.Build.VERSION.SDK_INT;
 import static androidx.media3.common.util.Util.constrainValue;
 import static androidx.media3.common.util.Util.msToUs;
+import static androidx.media3.common.util.Util.workaroundAudioVolumePlatformGlitch;
 import static androidx.media3.exoplayer.audio.AudioCapabilities.DEFAULT_AUDIO_CAPABILITIES;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -42,12 +43,14 @@ import androidx.media3.common.AuxEffectInfo;
 import androidx.media3.common.C;
 import androidx.media3.common.Format;
 import androidx.media3.common.MimeTypes;
+import androidx.media3.common.PlaybackException;
 import androidx.media3.common.PlaybackParameters;
 import androidx.media3.common.audio.AudioProcessingPipeline;
 import androidx.media3.common.audio.AudioProcessor;
 import androidx.media3.common.audio.AudioProcessor.UnhandledAudioFormatException;
 import androidx.media3.common.audio.SonicAudioProcessor;
 import androidx.media3.common.audio.ToInt16PcmAudioProcessor;
+import androidx.media3.common.util.Assertions;
 import androidx.media3.common.util.Clock;
 import androidx.media3.common.util.Log;
 import androidx.media3.common.util.UnstableApi;
@@ -698,9 +701,20 @@ public final class DefaultAudioSink implements AudioSink {
     if (!isAudioOutputInitialized() || startMediaTimeUsNeedsInit) {
       return CURRENT_POSITION_NOT_SET;
     }
+
     long positionUs = audioOutput.getPositionUs();
-    positionUs = min(positionUs, configuration.framesToDurationUs(getWrittenFrames()));
-    return applySkipping(applyMediaPositionParameters(positionUs));
+    long framesToDuration = configuration.framesToDurationUs(getWrittenFrames()); // MIREGO added to log
+    long savedPos = positionUs; // MIREGO added to log
+    positionUs = min(positionUs, framesToDuration);
+
+    long result = applySkipping(applyMediaPositionParameters(positionUs));
+
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "getCurrentPosition %d ms (savedPos: %d) frames to duration: %d ms result: %d ms  skipped frames: %d  delta: %d",
+        positionUs / 1000, savedPos / 1000, framesToDuration / 1000, result / 1000, audioProcessorChain.getSkippedOutputFrameCount(), (framesToDuration - positionUs) / 1000);
+
+    return result;
+
   }
 
   @Override
@@ -712,6 +726,9 @@ public final class DefaultAudioSink implements AudioSink {
     Format afterProcessingFormat;
 
     maybeAddAudioOutputProviderListener();
+
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "configure audiosink format: %s", inputFormat);
 
     if (MimeTypes.AUDIO_RAW.equals(inputFormat.sampleMimeType)) {
       checkArgument(Util.isEncodingLinearPcm(inputFormat.pcmEncoding));
@@ -754,12 +771,16 @@ public final class DefaultAudioSink implements AudioSink {
               .setChannelCount(outputFormat.channelCount)
               .build();
       outputPcmFrameSize = Util.getPcmFrameSize(outputFormat.encoding, outputFormat.channelCount);
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "configure audiosink OUTPUT_MODE_PCM outputFormat: %s", outputFormat);
     } else {
       // Audio processing is not supported in offload or passthrough mode.
       audioProcessingPipeline = new AudioProcessingPipeline(ImmutableList.of());
       inputPcmFrameSize = C.LENGTH_UNSET;
       outputPcmFrameSize = C.LENGTH_UNSET;
       afterProcessingFormat = inputFormat;
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "configure audiosink OUTPUT_MODE offload or passthrough");
     }
 
     OutputConfig outputConfig;
@@ -874,6 +895,10 @@ public final class DefaultAudioSink implements AudioSink {
     startMediaTimeUsNeedsSync = true;
   }
 
+  //MIREGO: added
+  private long saved_expectedPresentationTimeUs = 0;
+  private long saved_presentationTimeUs = 0;
+  private long saved_submittedFrames = 0;
   @Override
   @SuppressWarnings("ReferenceEquality")
   public boolean handleBuffer(
@@ -882,17 +907,33 @@ public final class DefaultAudioSink implements AudioSink {
     checkArgument(inputBuffer == null || buffer == inputBuffer);
 
     if (pendingConfiguration != null) {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "handleBuffer pendingConfiguration drainToEndOfStream()");
+
       if (!drainToEndOfStream()) {
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "handleBuffer pendingConfiguration draining, data still pending");
+
         // There's still pending data in audio processors to write to the output.
         return false;
       } else if (!pendingConfiguration.canReuseAudioOutput(configuration)) {
         playPendingData();
         if (hasPendingData()) {
           // We're waiting for playout on the current audio output to finish.
+
+          // MIREGO
+          Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "handleBuffer pendingConfiguration playing pending data");
+
           return false;
         }
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "handleBuffer pendingConfiguration flushing");
+
         flush();
       } else {
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "handleBuffer pendingConfiguration reusing audio track");
+
         // The current audio output can be reused for the new configuration.
         configuration = pendingConfiguration;
         pendingConfiguration = null;
@@ -915,6 +956,17 @@ public final class DefaultAudioSink implements AudioSink {
           // Not yet ready for initialization of a new audio output.
           return false;
         }
+
+        // MIREGO workaround volume issue on buggy platform. It's possible something stays stuck after starting another app on the device. Creating and releasing an audioTrack seems to solve it.
+        if (workaroundAudioVolumePlatformGlitch) {
+          workaroundAudioVolumePlatformGlitch = false;
+          audioOutput.release();
+          audioOutput = null;
+          return false;
+        }
+
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "handleBuffer pendingConfiguration reusing audio track");
       } catch (InitializationException e) {
         if (e.isRecoverable) {
           throw e; // Do not delay the exception if it can be recovered at higher level.
@@ -952,6 +1004,8 @@ public final class DefaultAudioSink implements AudioSink {
         // If this is the first encoded sample, calculate the sample size in frames.
         framesPerEncodedSample =
             getFramesPerEncodedSample(configuration.outputConfig.encoding, buffer);
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "handleBuffer framesPerEncodedSample %d", framesPerEncodedSample);
         if (framesPerEncodedSample == 0) {
           // We still don't know the number of frames per sample, so drop the buffer.
           // For TrueHD this can occur after some seek operations, as not every sample starts with
@@ -975,6 +1029,21 @@ public final class DefaultAudioSink implements AudioSink {
           startMediaTimeUs
               + configuration.inputFramesToDurationUs(
                   getSubmittedFrames() - trimmingAudioProcessor.getTrimmedFrameCount());
+
+      // MIREGO START
+      Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "handleBuffer expectVsPresTime: %d (%d - %d)  expectedPresTimeUs delta: %d  presTimeUs delta: %d",
+          expectedPresentationTimeUs - presentationTimeUs, expectedPresentationTimeUs, presentationTimeUs,
+          expectedPresentationTimeUs - saved_expectedPresentationTimeUs,
+          presentationTimeUs - saved_presentationTimeUs);
+
+      Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "handleBuffer getSubmittedFrames: %d submittedFramesDelta: %d  getTrimmedFrameCount: %d startMediaTimeUs: %d",
+          getSubmittedFrames(), getSubmittedFrames() - saved_submittedFrames, trimmingAudioProcessor.getTrimmedFrameCount(), startMediaTimeUs);
+
+      saved_expectedPresentationTimeUs = expectedPresentationTimeUs;
+      saved_presentationTimeUs = presentationTimeUs;
+      saved_submittedFrames = getSubmittedFrames();
+      // MIREGO END
+
       if (!startMediaTimeUsNeedsSync
           && Math.abs(expectedPresentationTimeUs - presentationTimeUs) > 200000) {
         if (listener != null) {
@@ -1003,8 +1072,10 @@ public final class DefaultAudioSink implements AudioSink {
 
       if (configuration.isPcm()) {
         submittedPcmBytes += buffer.remaining();
+        Log.v(Log.LOG_LEVEL_VERBOSE4, TAG, "handleBuffer submittedPcmBytes: %d", submittedPcmBytes);
       } else {
         submittedEncodedFrames += (long) framesPerEncodedSample * encodedAccessUnitCount;
+        Log.v(Log.LOG_LEVEL_VERBOSE4, TAG, "handleBuffer submittedEncodedFrames: %d", submittedEncodedFrames);
       }
 
       inputBuffer = buffer;
@@ -1016,6 +1087,10 @@ public final class DefaultAudioSink implements AudioSink {
     if (!inputBuffer.hasRemaining()) {
       inputBuffer = null;
       inputBufferAccessUnitCount = 0;
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "handleBuffer !inputBuffer.hasRemaining()");
+
       return true;
     }
 
@@ -1110,6 +1185,10 @@ public final class DefaultAudioSink implements AudioSink {
         drainOutputBuffer(avSyncPresentationTimeUs);
         if (outputBuffer != null) {
           // drainOutputBuffer method is providing back pressure.
+
+          // MIREGO
+          Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "processBuffers remaining input");
+
           return;
         }
       }
@@ -1126,6 +1205,9 @@ public final class DefaultAudioSink implements AudioSink {
    * @return Whether the buffers have been fully drained.
    */
   private boolean drainToEndOfStream() throws WriteException {
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "drainToEndOfStream");
+
     if (!audioProcessingPipeline.isOperational()) {
       drainOutputBuffer(C.TIME_END_OF_SOURCE);
       return outputBuffer == null;
@@ -1164,6 +1246,10 @@ public final class DefaultAudioSink implements AudioSink {
   @SuppressWarnings("ReferenceEquality")
   private void drainOutputBuffer(long avSyncPresentationTimeUs) throws WriteException {
     if (outputBuffer == null) {
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "writeBuffer outputBuffer == null");
+
       return;
     }
     if (writeExceptionPendingExceptionHolder.shouldWaitBeforeRetry()) {
@@ -1175,6 +1261,9 @@ public final class DefaultAudioSink implements AudioSink {
       fullyHandled =
           audioOutput.write(outputBuffer, inputBufferAccessUnitCount, avSyncPresentationTimeUs);
     } catch (AudioOutput.WriteException e) {
+
+      // MIREGO error reporting
+      Log.e(TAG, new PlaybackException("DefaultAudioSink write error ", e, PlaybackException.ERROR_CODE_AUDIO_SINK_WRITE));
       // Treat a write error on a previously successful offload channel as recoverable
       // without disabling offload. Offload will be disabled if offload channel was not successfully
       // written to or when a new AudioOutput is created, if no longer supported.
@@ -1223,12 +1312,16 @@ public final class DefaultAudioSink implements AudioSink {
     if (configuration.isPcm()) {
       writtenPcmBytes += bytesRemaining - outputBuffer.remaining();
     }
+
     if (fullyHandled) {
       if (!configuration.isPcm()) {
         // When playing non-PCM, the inputBuffer is never processed, thus the last inputBuffer
         // must be the current input buffer.
         checkState(outputBuffer == inputBuffer);
         writtenEncodedFrames += (long) framesPerEncodedSample * inputBufferAccessUnitCount;
+
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "writeBuffer writtenEncodedFrames: %d", writtenEncodedFrames);
       }
       outputBuffer = null;
     }
@@ -1447,6 +1540,8 @@ public final class DefaultAudioSink implements AudioSink {
   @Override
   public void pause() {
     playing = false;
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "pause()");
     if (isAudioOutputInitialized()) {
       audioOutput.pause();
     }
@@ -1590,11 +1685,17 @@ public final class DefaultAudioSink implements AudioSink {
         shouldApplyAudioProcessorPlaybackParameters()
             ? audioProcessorChain.applySkipSilenceEnabled(skipSilenceEnabled)
             : DEFAULT_SKIP_SILENCE;
+
+    // MIREGO
+    long audioTrackPositionUs = configuration.framesToDurationUs(getWrittenFrames());
+    Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "mediaPositionParametersCheckpoints.add mediaTimeUs: %d  framesToDurationUs: %d  writtenFrames: %d  sampleRate: %d",
+        max(0, presentationTimeUs), audioTrackPositionUs, writtenEncodedFrames, configuration.outputConfig.sampleRate);
+
     mediaPositionParametersCheckpoints.add(
         new MediaPositionParameters(
             audioProcessorPlaybackParameters,
             /* mediaTimeUs= */ max(0, presentationTimeUs),
-            /* audioOutputPositionUs= */ configuration.framesToDurationUs(getWrittenFrames())));
+            /* audioOutputPositionUs= */ audioTrackPositionUs));
     setupAudioProcessors();
     if (listener != null) {
       listener.onSkipSilenceEnabledChanged(skipSilenceEnabled);
@@ -1641,6 +1742,11 @@ public final class DefaultAudioSink implements AudioSink {
         && positionUs >= mediaPositionParametersCheckpoints.getFirst().audioOutputPositionUs) {
       // We are playing (or about to play) media with the new parameters, so update them.
       mediaPositionParameters = mediaPositionParametersCheckpoints.remove();
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "applyMediaPositionParameters switch mediaTimeUs: %d audioOutputPositionUs: %d  params: %f %f", mediaPositionParameters.mediaTimeUs,
+          mediaPositionParameters.audioOutputPositionUs, mediaPositionParameters.playbackParameters.speed,
+          mediaPositionParameters.playbackParameters.pitch);
     }
 
     long playoutDurationSinceLastCheckpointUs =
@@ -1657,6 +1763,9 @@ public final class DefaultAudioSink implements AudioSink {
           actualMediaDurationSinceLastCheckpointUs - estimatedMediaDurationSinceLastCheckpointUs;
       return currentMediaPositionUs;
     } else {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "applyMediaPositionParameters configured with new parameters");
+
       // The processor chain has been configured with new parameters, but we're still playing audio
       // that was processed using previous parameters. We can't scale the playout duration using the
       // processor chain in this case, so we fall back to scaling using the previous parameters'
@@ -2061,6 +2170,12 @@ public final class DefaultAudioSink implements AudioSink {
     }
 
     public boolean shouldWaitBeforeRetry() {
+      // MIREGO added to workaround a platform issue
+      if (Util.pendingAudioTrackReleaseShouldBlockNewTrackCreation && hasPendingAudioOutputReleases()) {
+        // Wait until other tracks are released to workaround a platform issue
+        return true;
+      }
+
       if (pendingException == null) {
         // No pending exception.
         return false;

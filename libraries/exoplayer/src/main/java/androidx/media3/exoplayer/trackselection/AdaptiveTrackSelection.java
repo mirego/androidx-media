@@ -40,6 +40,7 @@ import com.google.common.collect.MultimapBuilder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * A bandwidth based adaptive {@link ExoTrackSelection}, whose selected track is updated to be the
@@ -321,6 +322,22 @@ public class AdaptiveTrackSelection extends BaseTrackSelection {
   @Nullable private MediaChunk lastBufferEvaluationMediaChunk;
   private long latestBitrateEstimate;
 
+  // MIREGO START
+  private int initialMaxBitrate = Integer.MAX_VALUE;
+
+  private static final long BITRATE_INCREASE_SUCCESS_THRESHOLD_MS = TimeUnit.SECONDS.toMillis(8);
+  private static final long BITRATE_INCREASE_CONSECUTIVE_FAILURE_LIMIT = 5;
+  private static final long BITRATE_INCREASE_COOLDOWN_MS = TimeUnit.SECONDS.toMillis(30);
+  private long lastBitrateIncreaseMs = 0;
+  private int bitrateIncreaseFailureCount = 0;
+  private long bitrateIncreaseCooldownEnd = 0;
+
+  public void setInitialMaxBitrate(int maxBitrateBps) {
+    initialMaxBitrate = maxBitrateBps;
+  }
+
+  // MIREGO END
+
   /**
    * @param group The {@link TrackGroup}.
    * @param tracks The indices of the selected tracks within the {@link TrackGroup}. Must not be
@@ -447,7 +464,21 @@ public class AdaptiveTrackSelection extends BaseTrackSelection {
     if (reason == C.SELECTION_REASON_UNKNOWN) {
       reason = C.SELECTION_REASON_INITIAL;
       selectedIndex = determineIdealSelectedIndex(nowMs, chunkDurationUs);
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "updateSelectedTrack initialSelection: %d bitrate: %d)",
+          selectedIndex, getFormat(selectedIndex).bitrate);
+
       return;
+    }
+
+    long maxDurationForQualityDecreaseUs = this.maxDurationForQualityDecreaseUs; // MIREGO added
+
+    // MIREGO: added block to improve ABR in live. Use a smaller threshold to keep the current level if we have enough buffer
+    // the default duration is 25 secs, which is almost impossible to reach in live, given we try to minimize the delta to live edge
+    // this prevents the instant quality decrease if we have noise in the metered bandwidth
+    if ((Util.durationThresholdForAbrQualityDecreaseInLiveMs > 0) && (availableDurationUs != C.TIME_UNSET)) {
+      maxDurationForQualityDecreaseUs = min(maxDurationForQualityDecreaseUs, TimeUnit.MILLISECONDS.toMicros(Util.durationThresholdForAbrQualityDecreaseInLiveMs));
     }
 
     int previousSelectedIndex = selectedIndex;
@@ -466,8 +497,17 @@ public class AdaptiveTrackSelection extends BaseTrackSelection {
       Format selectedFormat = getFormat(newSelectedIndex);
       long minDurationForQualityIncreaseUs =
           minDurationForQualityIncreaseUs(availableDurationUs, chunkDurationUs);
+
+      //MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "updateSelectedTrack idealTrack: %d (bitrate %d) bufferedDurationUs: %d  minDurationForQualityIncreaseUs: %d",
+          newSelectedIndex, getFormat(newSelectedIndex).bitrate, bufferedDurationUs, minDurationForQualityIncreaseUs);
+
       if (selectedFormat.bitrate > currentFormat.bitrate
           && bufferedDurationUs < minDurationForQualityIncreaseUs) {
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "updateSelectedTrack idealTrack: %d (bitrate %d), but not enough buffered duration (%d/%d) keep %d",
+            newSelectedIndex, getFormat(newSelectedIndex).bitrate, bufferedDurationUs, minDurationForQualityIncreaseUs, previousSelectedIndex);
+
         // The selected track is a higher quality, but we have insufficient buffer to safely switch
         // up. Defer switching up for now.
         newSelectedIndex = previousSelectedIndex;
@@ -475,7 +515,40 @@ public class AdaptiveTrackSelection extends BaseTrackSelection {
           && bufferedDurationUs >= maxDurationForQualityDecreaseUs) {
         // The selected track is a lower quality, but we have sufficient buffer to defer switching
         // down for now.
+
+        //MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "updateSelectedTrack idealTrack: %d (bitrate %d), but enough buffered duration to defer switch (%d/%d) keep %d",
+            newSelectedIndex, getFormat(newSelectedIndex).bitrate, bufferedDurationUs, maxDurationForQualityDecreaseUs, previousSelectedIndex);
+
         newSelectedIndex = previousSelectedIndex;
+      }
+
+      // MIREGO: added block to improve ABR in live. Adds a cooldown on increasing bitrate if we fail to sustain the higher rate multiple times in a row
+      if (Util.shouldThrottleMultipleBitrateChanges && (newSelectedIndex != previousSelectedIndex)) {
+        if (selectedFormat.bitrate > currentFormat.bitrate) {
+          if (lastBitrateIncreaseMs > 0) { // 2 consecutive increases, reset the failure count
+            lastBitrateIncreaseMs = nowMs;
+            bitrateIncreaseFailureCount = 0;
+          } else if (nowMs < bitrateIncreaseCooldownEnd) {
+            newSelectedIndex = previousSelectedIndex; // still on cooldown for bitrate increases, do not increase for now
+          } else {
+            lastBitrateIncreaseMs = nowMs;
+          }
+        } else if (lastBitrateIncreaseMs > 0) { // only handle the first decrease, ignore the consecutive ones after
+          if (nowMs > lastBitrateIncreaseMs + BITRATE_INCREASE_SUCCESS_THRESHOLD_MS) { // sustained the new rate long enough
+            bitrateIncreaseCooldownEnd = 0;
+            bitrateIncreaseFailureCount = 0;
+          } else { // if we haven't been able to sustain the new rate for long enough, consider it a failure.
+            if (++bitrateIncreaseFailureCount >= BITRATE_INCREASE_CONSECUTIVE_FAILURE_LIMIT) {
+              bitrateIncreaseCooldownEnd = nowMs + BITRATE_INCREASE_COOLDOWN_MS; // many consecutive failures, cooldown on future retries
+            }
+          }
+          lastBitrateIncreaseMs = 0;
+        }
+
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "updateSelectedTrack idealTrack: %d bitrate: %d (previous: %d bitrate: %d)",
+            newSelectedIndex, getFormat(newSelectedIndex).bitrate, previousSelectedIndex, getFormat(previousSelectedIndex).bitrate);
       }
     }
     // If we adapted, update the trigger.
@@ -599,6 +672,14 @@ public class AdaptiveTrackSelection extends BaseTrackSelection {
   private int determineIdealSelectedIndex(long nowMs, long chunkDurationUs) {
     long effectiveBitrate = getAllocatedBandwidth(chunkDurationUs);
     int lowestBitrateAllowedIndex = 0;
+
+    // MIREGO START
+    effectiveBitrate = min(effectiveBitrate, initialMaxBitrate);
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "determineIdealSelectedIndex effectiveBitrate: %d initialMaxBitrate: %d",
+        effectiveBitrate, initialMaxBitrate);
+    initialMaxBitrate = Integer.MAX_VALUE;
+    // MIREGO END
+
     for (int i = 0; i < length; i++) {
       if (nowMs == Long.MIN_VALUE || !isTrackExcluded(i, nowMs)) {
         Format format = getFormat(i);

@@ -317,13 +317,18 @@ public final class DashMediaSource extends BaseMediaSource {
      * @throws IllegalArgumentException If {@link DashManifest#dynamic} is true.
      */
     public DashMediaSource createMediaSource(DashManifest manifest) {
+      return createMediaSource(manifest, false);
+    }
+
+    public DashMediaSource createMediaSource(DashManifest manifest, /* MIREGO */ boolean forceCEAFormatIfMissing) {
       return createMediaSource(
           manifest,
           new MediaItem.Builder()
               .setUri(Uri.EMPTY)
               .setMediaId(DEFAULT_MEDIA_ID)
               .setMimeType(MimeTypes.APPLICATION_MPD)
-              .build());
+              .build()
+          , /* MIREGO */ forceCEAFormatIfMissing);
     }
 
     /**
@@ -336,6 +341,10 @@ public final class DashMediaSource extends BaseMediaSource {
      * @throws IllegalArgumentException If {@link DashManifest#dynamic} is true.
      */
     public DashMediaSource createMediaSource(DashManifest manifest, MediaItem mediaItem) {
+      return createMediaSource(manifest, mediaItem, false);
+    }
+
+    public DashMediaSource createMediaSource(DashManifest manifest, MediaItem mediaItem, /* MIREGO */ boolean forceCEAFormatIfMissing) {
       checkArgument(!manifest.dynamic);
       MediaItem.Builder mediaItemBuilder =
           mediaItem.buildUpon().setMimeType(MimeTypes.APPLICATION_MPD);
@@ -360,7 +369,8 @@ public final class DashMediaSource extends BaseMediaSource {
           loadErrorHandlingPolicy,
           fallbackTargetLiveOffsetMs,
           minLiveStartPositionUs,
-          downloadExecutorSupplier);
+          downloadExecutorSupplier,
+          /* MIREGO */ forceCEAFormatIfMissing);
     }
 
     /**
@@ -372,6 +382,17 @@ public final class DashMediaSource extends BaseMediaSource {
      */
     @Override
     public DashMediaSource createMediaSource(MediaItem mediaItem) {
+      return createMediaSource(mediaItem, false);
+    }
+
+    /**
+     * Returns a new {@link DashMediaSource} using the current parameters.
+     *
+     * @param mediaItem The media item of the dash stream.
+     * @return The new {@link DashMediaSource}.
+     * @throws NullPointerException if {@link MediaItem#localConfiguration} is {@code null}.
+     */
+    public DashMediaSource createMediaSource(MediaItem mediaItem, /* MIREGO */ boolean forceCEAFormatIfMissing) {
       checkNotNull(mediaItem.localConfiguration);
       @Nullable ParsingLoadable.Parser<? extends DashManifest> manifestParser = this.manifestParser;
       if (manifestParser == null) {
@@ -399,7 +420,8 @@ public final class DashMediaSource extends BaseMediaSource {
           loadErrorHandlingPolicy,
           fallbackTargetLiveOffsetMs,
           minLiveStartPositionUs,
-          downloadExecutorSupplier);
+          downloadExecutorSupplier,
+          /* MIREGO */ forceCEAFormatIfMissing);
     }
 
     @Override
@@ -478,6 +500,7 @@ public final class DashMediaSource extends BaseMediaSource {
 
   @GuardedBy("this")
   private MediaItem.LiveConfiguration liveConfiguration;
+  private final boolean forceCEAFormatIfMissing; /* MIREGO */
 
   private DashMediaSource(
       MediaItem mediaItem,
@@ -491,7 +514,8 @@ public final class DashMediaSource extends BaseMediaSource {
       LoadErrorHandlingPolicy loadErrorHandlingPolicy,
       long fallbackTargetLiveOffsetMs,
       long minLiveStartPositionUs,
-      @Nullable Supplier<ReleasableExecutor> downloadExecutorSupplier) {
+      @Nullable Supplier<ReleasableExecutor> downloadExecutorSupplier,
+      /* MIREGO */ boolean forceCEAFormatIfMissing) {
     this.mediaItem = mediaItem;
     this.liveConfiguration = mediaItem.liveConfiguration;
     this.manifestUri = checkNotNull(mediaItem.localConfiguration).uri;
@@ -507,6 +531,7 @@ public final class DashMediaSource extends BaseMediaSource {
     this.minLiveStartPositionUs = minLiveStartPositionUs;
     this.compositeSequenceableLoaderFactory = compositeSequenceableLoaderFactory;
     this.downloadExecutorSupplier = downloadExecutorSupplier;
+    this.forceCEAFormatIfMissing = forceCEAFormatIfMissing;
     baseUrlExclusionList = new BaseUrlExclusionList();
     sideloadedManifest = manifest != null;
     manifestEventDispatcher = createEventDispatcher(/* mediaPeriodId= */ null);
@@ -614,7 +639,9 @@ public final class DashMediaSource extends BaseMediaSource {
             compositeSequenceableLoaderFactory,
             playerEmsgCallback,
             getPlayerId(),
-            downloadExecutorSupplier);
+            downloadExecutorSupplier,
+            /* MIREGO */ forceCEAFormatIfMissing);
+
     periodsById.put(mediaPeriod.id, mediaPeriod);
     return mediaPeriod;
   }

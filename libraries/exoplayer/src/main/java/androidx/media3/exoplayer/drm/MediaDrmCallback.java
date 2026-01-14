@@ -111,4 +111,14 @@ public interface MediaDrmCallback {
    * @throws MediaDrmCallbackException If an error occurred executing the request.
    */
   Response executeKeyRequest(UUID uuid, KeyRequest request) throws MediaDrmCallbackException;
+
+  // MIREGO
+  default void onProvisionError(Throwable e) {
+    // NOOP
+  }
+
+  default void onKeyError(Throwable e) {
+    // NOOP
+  }
+  // MIREGO END
 }

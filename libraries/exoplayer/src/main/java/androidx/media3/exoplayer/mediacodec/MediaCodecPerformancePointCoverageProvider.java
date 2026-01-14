@@ -24,6 +24,7 @@ import androidx.annotation.IntDef;
 import androidx.annotation.RequiresApi;
 import androidx.media3.common.Format;
 import androidx.media3.common.MimeTypes;
+import androidx.media3.common.util.Util;
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -85,7 +86,20 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
    */
   public static @PerformancePointCoverageResult int areResolutionAndFrameRateCovered(
       VideoCapabilities videoCapabilities, int width, int height, double frameRate) {
-    if (SDK_INT < 29 || (shouldIgnorePerformancePoints != null && shouldIgnorePerformancePoints)) {
+
+    // MIREGO: added support for doNotIgnorePerformancePointsForResolutionAndFrameRate
+    // some devices now drop lots of frames due to COVERAGE_RESULT_NO_PERFORMANCE_POINTS_UNSUPPORTED
+    // we want to be able to disable it for some device models
+    if (Util.doNotIgnorePerformancePointsForResolutionAndFrameRate && Util.SDK_INT >= 29) {
+      int evaluation = Api29.areResolutionAndFrameRateCovered(videoCapabilities, width, height, frameRate);
+      if (evaluation == COVERAGE_RESULT_NO_PERFORMANCE_POINTS_UNSUPPORTED) {
+        return COVERAGE_RESULT_NO;
+      }
+      return evaluation;
+    }
+
+    if (Util.SDK_INT < 29
+        || (shouldIgnorePerformancePoints != null && shouldIgnorePerformancePoints)) {
       return COVERAGE_RESULT_NO_PERFORMANCE_POINTS_UNSUPPORTED;
     }
 

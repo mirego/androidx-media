@@ -115,6 +115,11 @@ public final class HttpMediaDrmCallback implements MediaDrmCallback {
     }
   }
 
+  // MIREGO
+  public Map<String, String> getKeyRequestProperties() {
+    return keyRequestProperties;
+  }
+
   // Wrapping into a RuntimeException is recommended by the JSONException docs:
   // https://developer.android.com/reference/org/json/JSONException
   @SuppressWarnings("ThrowSpecificExceptions")
@@ -138,7 +143,20 @@ public final class HttpMediaDrmCallback implements MediaDrmCallback {
   @Override
   public Response executeKeyRequest(UUID uuid, KeyRequest request)
       throws MediaDrmCallbackException {
+    // MIREGO
+    return executeKeyRequest(uuid, request, null);
+  }
+
+  // MIREGO
+  public Response executeKeyRequest(UUID uuid, KeyRequest request,
+      @Nullable Map<String, String> keyRequestPropertiesOverride) throws MediaDrmCallbackException {
     String url = request.getLicenseServerUrl();
+
+    // MIREGO
+    Map<String, String> keyRequestProperties = keyRequestPropertiesOverride != null ?
+        keyRequestPropertiesOverride :
+        this.keyRequestProperties;
+
     if (forceDefaultLicenseUrl || TextUtils.isEmpty(url)) {
       url = defaultLicenseUrl;
     }
@@ -171,4 +189,5 @@ public final class HttpMediaDrmCallback implements MediaDrmCallback {
         /* httpBody= */ request.getData(),
         requestProperties);
   }
+  // END MIREGO
 }

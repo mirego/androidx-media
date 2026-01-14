@@ -32,6 +32,7 @@ import java.util.Random
 import java.util.concurrent.atomic.AtomicReference
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.lang.Exception
 
 /** Unit tests for {@link VideoFrameReleaseHelper}. */
 @RunWith(AndroidJUnit4::class)
@@ -558,6 +559,10 @@ class VideoFrameReleaseHelperTest {
     }
     Log.setLogger(
       object : Log.Logger {
+        override fun v(level: Int, tag: String, message: String) {
+          // NOOP
+        }
+
         override fun d(tag: String, message: String, throwable: Throwable?) {
           saveIfThrowableIsFromChoreographer(throwable)
         }
@@ -572,6 +577,10 @@ class VideoFrameReleaseHelperTest {
 
         override fun e(tag: String, message: String, throwable: Throwable?) {
           saveIfThrowableIsFromChoreographer(throwable)
+        }
+
+        override fun e(tag: String, exception: Exception) {
+          saveIfThrowableIsFromChoreographer(exception)
         }
       }
     )

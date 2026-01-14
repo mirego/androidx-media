@@ -1122,6 +1122,9 @@ import java.util.Objects;
     updateRebufferingState(/* isRebuffering= */ false, /* resetLastRebufferRealtimeMs= */ false);
     notifyTrackSelectionPlayWhenReadyChanged(playWhenReady);
     if (!shouldPlayWhenReady()) {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "setPlayWhenReadyInternal !shouldPlayWhenReady()");
+
       stopRenderers();
       updatePlaybackPositions();
       if (playbackInfo.sleepingForOffload) {
@@ -1129,6 +1132,9 @@ import java.util.Objects;
       }
       queue.reevaluateBuffer(rendererPositionUs);
     } else {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "setPlayWhenReadyInternal state: %d", playbackInfo.playbackState);
+
       if (playbackInfo.playbackState == Player.STATE_READY) {
         mediaClock.start();
         startRenderers();
@@ -1277,6 +1283,10 @@ import java.util.Objects;
           mediaClock.syncAndGetPositionUs(
               /* isReadingAhead= */ playingPeriodHolder != queue.getReadingPeriod());
       long periodPositionUs = playingPeriodHolder.toPeriodTime(rendererPositionUs);
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "updatePlaybackPositions rendererPositionUs: %d  (periodPositionUs: %d)", rendererPositionUs, periodPositionUs);
+
       maybeTriggerPendingMessages(playbackInfo.positionUs, periodPositionUs);
       if (mediaClock.hasSkippedSilenceSinceLastCall()) {
         // Only report silence skipping if there isn't already another discontinuity.
@@ -1381,11 +1391,18 @@ import java.util.Objects;
         // reading ahead into the next stream or is waiting for the next stream. This is to avoid
         // getting stuck if tracks in the current period have uneven durations and are still being
         // read by another renderer. See: https://github.com/google/ExoPlayer/issues/1874.
+
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE4, TAG,"renderer.render %s pos %d us  elapsed realtime: %d us", renderer, rendererPositionUs, rendererPositionElapsedRealtimeUs);
+
         renderersEnded = renderersEnded && renderer.isEnded();
         boolean allowsPlayback = renderer.allowsPlayback(playingPeriodHolder);
         maybeTriggerOnRendererReadyChanged(/* rendererIndex= */ i, allowsPlayback);
         renderersAllowPlayback = renderersAllowPlayback && allowsPlayback;
         if (!allowsPlayback) {
+          // MIREGO
+          Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "doSomeWork !allowsPlayback: mediaPeriod start: %d  duration: %d", playingPeriodHolder.info.startPositionUs, playingPeriodHolder.info.durationUs);
+
           maybeThrowRendererStreamError(/* rendererIndex= */ i);
         }
       }
@@ -1412,6 +1429,9 @@ import java.util.Objects;
       stopRenderers();
     } else if (playbackInfo.playbackState == Player.STATE_BUFFERING
         && shouldTransitionToReadyState(renderersAllowPlayback)) {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "doSomeWork setState STATE_READY");
+
       setState(Player.STATE_READY);
       pendingRecoverableRendererError = null; // Any pending error was successfully recovered from.
       if (shouldPlayWhenReady()) {
@@ -1424,6 +1444,9 @@ import java.util.Objects;
         && !(enabledRendererCount == 0 ? isTimelineReady() : renderersAllowPlayback)) {
       updateRebufferingState(
           /* isRebuffering= */ shouldPlayWhenReady(), /* resetLastRebufferRealtimeMs= */ false);
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "doSomeWork setState BUFFERING");
+
       setState(Player.STATE_BUFFERING);
       if (isRebuffering) {
         notifyTrackSelectionRebuffer();
@@ -1829,6 +1852,10 @@ import java.util.Objects;
         playingMediaPeriod == null
             ? MediaPeriodQueue.INITIAL_RENDERER_POSITION_OFFSET_US + periodPositionUs
             : playingMediaPeriod.toRendererTime(periodPositionUs);
+
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "resetRendererPosition: %d", rendererPositionUs);
+
     mediaClock.resetPosition(rendererPositionUs);
     for (RendererHolder rendererHolder : renderers) {
       rendererHolder.resetPosition(
@@ -2747,6 +2774,9 @@ import java.util.Objects;
       // We don't have a successor to advance the reading period to or we want to let them end
       // intentionally to pause at the end of the period.
       if (readingPeriodHolder.info.isFinal || pendingPauseAtEndOfPeriod) {
+        // MIREGO
+        Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "maybeUpdateReadingPeriod readingPeriodHolder.info.isFinal: %s pendingPauseAtEndOfPeriod: %s", readingPeriodHolder.info.isFinal, pendingPauseAtEndOfPeriod);
+
         for (RendererHolder renderer : renderers) {
           if (!renderer.isReadingFromPeriod(readingPeriodHolder)) {
             continue;
@@ -2759,6 +2789,11 @@ import java.util.Objects;
                         && readingPeriodHolder.info.durationUs != C.TIME_END_OF_SOURCE
                     ? readingPeriodHolder.getRendererOffset() + readingPeriodHolder.info.durationUs
                     : C.TIME_UNSET;
+
+            //MIREGO
+            Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "maybeUpdateReadingPeriod setCurrentStreamFinal renderer: %s streamEndPositionUs: %d  duration: %d",
+                renderer, streamEndPositionUs, readingPeriodHolder.info.durationUs);
+
             renderer.setCurrentStreamFinal(readingPeriodHolder, streamEndPositionUs);
           }
         }
@@ -2767,6 +2802,9 @@ import java.util.Objects;
     }
 
     if (!hasReadingPeriodFinishedReading()) {
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "maybeUpdateReadingPeriod not finished reading. Period durationUs: %d  rendererOffset: %d",
+          readingPeriodHolder.info.durationUs, readingPeriodHolder.getRendererOffset());
       return;
     }
 
@@ -2774,6 +2812,9 @@ import java.util.Objects;
       // Reading period has already advanced to pre-warming period.
       return;
     }
+
+    Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "maybeUpdateReadingPeriod finished reading. Period durationUs: %d  rendererOffset: %d  next prepared: %s",
+        readingPeriodHolder.info.durationUs, readingPeriodHolder.getRendererOffset(), readingPeriodHolder.getNext().prepared);
 
     if (!readingPeriodHolder.getNext().prepared
         && rendererPositionUs < readingPeriodHolder.getNext().getStartPositionRendererTime()) {
@@ -2804,6 +2845,9 @@ import java.util.Objects;
         && ((hasSecondaryRenderers && prewarmingMediaPeriodDiscontinuity != C.TIME_UNSET)
             || readingPeriodHolder.mediaPeriod.readDiscontinuity() != C.TIME_UNSET)) {
       prewarmingMediaPeriodDiscontinuity = C.TIME_UNSET;
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "maybeUpdateReadingPeriod new period discontinuity");
+
       // The new period starts with a discontinuity, so unless a pre-warming renderer is handling
       // the discontinuity, the renderers will play out all data, then
       // be disabled and re-enabled when they start playing the next period.
@@ -2952,6 +2996,10 @@ import java.util.Objects;
               && newPlayingPeriodHolder.info.id.adGroupIndex == C.INDEX_UNSET
               && playbackInfo.periodId.nextAdGroupIndex
                   != newPlayingPeriodHolder.info.id.nextAdGroupIndex;
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "maybeUpdatePlayingPeriod changing period  start: %d  duration: %d", newPlayingPeriodHolder.info.startPositionUs, newPlayingPeriodHolder.info.durationUs);
+
       playbackInfo =
           handlePositionDiscontinuity(
               newPlayingPeriodHolder.info.id,
@@ -3050,6 +3098,10 @@ import java.util.Objects;
         return false;
       }
     }
+
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "hasReadingPeriodFinishedReading returns true");
+
     return true;
   }
 
@@ -3325,6 +3377,10 @@ import java.util.Objects;
       long startPositionUs)
       throws ExoPlaybackException {
     RendererHolder renderer = renderers[rendererIndex];
+
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "enableRenderer %s", renderer);
+
     if (renderer.isRendererEnabled()) {
       return;
     }
@@ -3369,7 +3425,13 @@ import java.util.Objects;
         /* mediaPeriod= */ periodHolder);
     // Start the renderer if playing and the Playing and Reading periods are the same.
     if (playing && arePlayingAndReadingTheSamePeriod) {
+
+      // MIREGO
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "renderer.start() %s", renderer);
+
       renderer.start();
+    } else { // MIREGO ADDED ELSE BLOCK
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "not starting renderer %s (not playing playWhenReady: %s state: %d)", renderer, shouldPlayWhenReady(), playbackInfo.playbackState);
     }
   }
 

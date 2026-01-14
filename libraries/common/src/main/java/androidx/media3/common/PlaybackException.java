@@ -93,10 +93,12 @@ public class PlaybackException extends Exception {
         ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
         ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
         ERROR_CODE_DECODING_RESOURCES_RECLAIMED,
+        ERROR_CODE_AUDIO_TRACK_INCONSISTENT_SAMPLE_RATE, // MIREGO
         ERROR_CODE_AUDIO_TRACK_INIT_FAILED,
         ERROR_CODE_AUDIO_TRACK_WRITE_FAILED,
         ERROR_CODE_AUDIO_TRACK_OFFLOAD_INIT_FAILED,
         ERROR_CODE_AUDIO_TRACK_OFFLOAD_WRITE_FAILED,
+        ERROR_CODE_AUDIO_VIDEO_DESYNC, // MIREGO
         ERROR_CODE_DRM_UNSPECIFIED,
         ERROR_CODE_DRM_SCHEME_UNSUPPORTED,
         ERROR_CODE_DRM_PROVISIONING_FAILED,
@@ -291,6 +293,27 @@ public class PlaybackException extends Exception {
   /** Caused by an AudioTrack init operation failure in offload mode. */
   public static final int ERROR_CODE_AUDIO_TRACK_OFFLOAD_INIT_FAILED = 5004;
 
+  /** MIREGO: Caused by an inconsistent sample rate between the container and the track atom (recoverable). */
+  public static final int ERROR_CODE_AUDIO_TRACK_INCONSISTENT_SAMPLE_RATE = 5901;
+
+  /** MIREGO: Caused by the audio and video being out of sync */
+  public static final int ERROR_CODE_AUDIO_VIDEO_DESYNC = 5902;
+
+  /** MIREGO: Caused by the audio sink returning an error on write */
+  public static final int ERROR_CODE_AUDIO_SINK_WRITE = 5903;
+
+  /** MIREGO: Caused by a long delay before the stopped audio track position is reset (potential cause of stuck playback) */
+  public static final int ERROR_CODE_AUDIO_WAITING_FOR_HEAD_POSITION_RESET = 5904;
+
+  /** MIREGO: Caused by a network error trying to get time from the NTP server */
+  public static final int ERROR_CODE_NTP = 5905;
+
+  /** MIREGO: Caused by the video codec being stalled (issue under investigation) */
+  public static final int ERROR_CODE_VIDEO_CODEC_STALLED = 5906;
+
+  /** MIREGO: Caused by a Drm offline key hashcode not found in the hash codes array */
+  public static final int ERROR_CODE_OFFLINE_DRM_HASH_CODE_NOT_FOUND = 5907;
+
   // DRM errors (6xxx).
 
   /** Caused by an unspecified error related to DRM protection. */
@@ -340,7 +363,7 @@ public class PlaybackException extends Exception {
    * Player implementations that want to surface custom errors can use error codes greater than this
    * value, so as to avoid collision with other error codes defined in this class.
    */
-  public static final int CUSTOM_ERROR_CODE_BASE = 1000000;
+  public static final int CUSTOM_ERROR_CODE_BASE = 9000;  // MIREGO: changed from 1000000, it looked weird
 
   /** Returns the name of a given {@code errorCode}. */
   public static String getErrorCodeName(@ErrorCode int errorCode) {
@@ -451,9 +474,25 @@ public class PlaybackException extends Exception {
         return "ERROR_CODE_VIDEO_FRAME_PROCESSOR_INIT_FAILED";
       case ERROR_CODE_VIDEO_FRAME_PROCESSING_FAILED:
         return "ERROR_CODE_VIDEO_FRAME_PROCESSING_FAILED";
+      // MIREGO: added our custom error codes
+      case ERROR_CODE_AUDIO_TRACK_INCONSISTENT_SAMPLE_RATE:
+        return "ERROR_CODE_AUDIO_TRACK_INCONSISTENT_SAMPLE_RATE";
+      case ERROR_CODE_AUDIO_VIDEO_DESYNC:
+        return "ERROR_CODE_AUDIO_VIDEO_DESYNC";
+      case ERROR_CODE_AUDIO_SINK_WRITE:
+        return "ERROR_CODE_AUDIO_SINK_WRITE";
+      case ERROR_CODE_AUDIO_WAITING_FOR_HEAD_POSITION_RESET:
+        return "ERROR_CODE_AUDIO_WAITING_FOR_HEAD_POSITION_RESET";
+      case ERROR_CODE_NTP:
+        return "ERROR_CODE_NTP";
+      case ERROR_CODE_VIDEO_CODEC_STALLED:
+        return "ERROR_CODE_VIDEO_CODEC_STALLED";
+      case ERROR_CODE_OFFLINE_DRM_HASH_CODE_NOT_FOUND:
+        return "ERROR_CODE_OFFLINE_DRM_HASH_CODE_NOT_FOUND";
+
       default:
         if (errorCode >= CUSTOM_ERROR_CODE_BASE) {
-          return "custom error code";
+          return "Error code " + errorCode;
         } else {
           return "invalid error code";
         }

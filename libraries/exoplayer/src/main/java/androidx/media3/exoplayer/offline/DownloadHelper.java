@@ -679,6 +679,12 @@ public final class DownloadHelper {
     return immutableTrackSelectionsByPeriodAndRenderer[periodIndex][rendererIndex];
   }
 
+  // MIREGO added
+  public MediaPeriod[] getPeriods() {
+    assertPreparedWithMedia();
+    return mediaPreparer.mediaPeriods;
+  }
+
   /**
    * Clears the selection of tracks for a period. Must not be called until {@link
    * Callback#onPrepared(DownloadHelper, boolean)} is triggered and the passed {@code
@@ -1443,7 +1449,7 @@ public final class DownloadHelper {
     }
   }
 
-  private static final class DownloadTrackSelection extends BaseTrackSelection {
+  public static final class DownloadTrackSelection extends BaseTrackSelection {
 
     private static final class Factory implements ExoTrackSelection.Factory {
 

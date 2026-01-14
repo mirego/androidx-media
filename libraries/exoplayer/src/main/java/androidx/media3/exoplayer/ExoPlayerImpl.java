@@ -1088,6 +1088,8 @@ import java.util.function.IntConsumer;
       this.foregroundMode = foregroundMode;
       if (!internalPlayer.setForegroundMode(foregroundMode)) {
         // One of the renderers timed out releasing its resources.
+        // MIREGO
+        Log.e(TAG, String.format("setForegroundMode(%s), ERROR_CODE_TIMEOUT", foregroundMode));
         stopInternal(
             ExoPlaybackException.createForUnexpected(
                 new ExoTimeoutException(ExoTimeoutException.TIMEOUT_OPERATION_SET_FOREGROUND_MODE),
@@ -1132,6 +1134,8 @@ import java.util.function.IntConsumer;
     stuckPlayerDetector.release();
     if (!internalPlayer.release()) {
       // One of the renderers timed out releasing its resources.
+      // MIREGO
+      Log.e(TAG, "release(), ERROR_CODE_TIMEOUT");
       listeners.sendEvent(
           Player.EVENT_PLAYER_ERROR,
           listener ->
@@ -3344,6 +3348,12 @@ import java.util.function.IntConsumer;
     @Override
     public void onDroppedFrames(int count, long elapsed) {
       analyticsCollector.onDroppedFrames(count, elapsed);
+    }
+
+    //MIREGO added
+    @Override
+    public void onQueuedFrames(int count, long elapsed) {
+      analyticsCollector.onQueuedFrames(count, elapsed);
     }
 
     @Override

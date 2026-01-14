@@ -27,6 +27,7 @@ import androidx.annotation.Nullable;
 import androidx.media3.common.C;
 import androidx.media3.common.util.BackgroundExecutor;
 import androidx.media3.common.util.Clock;
+import androidx.media3.common.util.Log;
 import androidx.media3.common.util.NetworkTypeObserver;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.common.util.Util;
@@ -52,6 +53,8 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
  */
 @UnstableApi
 public final class DefaultBandwidthMeter implements BandwidthMeter, TransferListener {
+
+  private static final String TAG = "BandwidthMeter";
 
   /** Default initial Wifi bitrate estimate in bits per second. */
   public static final ImmutableList<Long> DEFAULT_INITIAL_BITRATE_ESTIMATES_WIFI =
@@ -85,6 +88,8 @@ public final class DefaultBandwidthMeter implements BandwidthMeter, TransferList
 
   /** Default maximum weight for the sliding window. */
   public static final int DEFAULT_SLIDING_WINDOW_MAX_WEIGHT = 2000;
+
+  private static int MIN_SAMPLE_COUNT_TO_DECREASE_ESTIMATE = 4;  // MIREGO added
 
   /**
    * Index for the Wifi group index in the array returned by {@link
@@ -299,6 +304,8 @@ public final class DefaultBandwidthMeter implements BandwidthMeter, TransferList
   @GuardedBy("this") // Used in TransferListener methods that are called on a background thread.
   private long totalBytesTransferred;
 
+  private int totalSampleCount; // MIREGO added
+
   @GuardedBy("this") // Used in TransferListener methods that are called on a background thread.
   private long bitrateEstimate;
 
@@ -406,12 +413,22 @@ public final class DefaultBandwidthMeter implements BandwidthMeter, TransferList
     int sampleElapsedTimeMs = (int) (nowMs - sampleStartTimeMs);
     totalElapsedTimeMs += sampleElapsedTimeMs;
     totalBytesTransferred += sampleBytesTransferred;
+
+    // MIREGO
+    Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "onTransferEnd sampleElapsedTimeMs: %d  sampleBytesTransferred: %d",
+        sampleElapsedTimeMs, sampleBytesTransferred);
+
     if (sampleElapsedTimeMs > 0) {
+      totalSampleCount++; // MIREGO added
       float bitsPerSecond = (sampleBytesTransferred * 8000f) / sampleElapsedTimeMs;
       slidingPercentile.addSample((int) Math.sqrt(sampleBytesTransferred), bitsPerSecond);
       if (totalElapsedTimeMs >= ELAPSED_MILLIS_FOR_ESTIMATE
           || totalBytesTransferred >= BYTES_TRANSFERRED_FOR_ESTIMATE) {
-        bitrateEstimate = (long) slidingPercentile.getPercentile(0.5f);
+        // MIREGO: avoid decreasing the initial estimate and potentially switching layer too fast because of only 1-2 slow transfers
+        long slidingEstimate = (long) slidingPercentile.getPercentile(0.5f);
+        if ((slidingEstimate > bitrateEstimate) || (totalSampleCount >= MIN_SAMPLE_COUNT_TO_DECREASE_ESTIMATE)) {
+          bitrateEstimate = slidingEstimate;
+        }
       }
       maybeNotifyBandwidthSample(sampleElapsedTimeMs, sampleBytesTransferred, bitrateEstimate);
       sampleStartTimeMs = nowMs;
@@ -455,6 +472,7 @@ public final class DefaultBandwidthMeter implements BandwidthMeter, TransferList
     sampleStartTimeMs = nowMs;
     sampleBytesTransferred = 0;
     totalBytesTransferred = 0;
+    totalSampleCount = 0; // MIREGO added
     totalElapsedTimeMs = 0;
     slidingPercentile.reset();
   }
