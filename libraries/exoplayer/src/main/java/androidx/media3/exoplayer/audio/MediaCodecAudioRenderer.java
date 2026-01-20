@@ -940,7 +940,8 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
         audioSink.setSkipSilenceEnabled((Boolean) checkNotNull(message));
         break;
       case MSG_SET_AUDIO_SESSION_ID:
-        setAudioSessionId((int) checkNotNull(message));
+        // MIREGO: use a distinct session for tunneling
+        setAudioSessionId((Pair<Integer, Integer>) checkNotNull(message));
         break;
       case MSG_SET_PRIORITY:
         rendererPriority = (int) checkNotNull(message);
@@ -1070,10 +1071,11 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
     return mediaFormat;
   }
 
-  private void setAudioSessionId(int audioSessionId) {
-    audioSink.setAudioSessionId(audioSessionId);
+  // MIREGO: use a distinct session for tunneling
+  private void setAudioSessionId(Pair<Integer, Integer> audioSessionId) {
+    audioSink.setAudioSessionId(audioSessionId.first, audioSessionId.second);
     if (SDK_INT >= 35 && loudnessCodecController != null) {
-      loudnessCodecController.setAudioSessionId(audioSessionId);
+      loudnessCodecController.setAudioSessionId(audioSessionId.first);  //smo todo
     }
   }
 
@@ -1204,12 +1206,13 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
       eventDispatcher.audioTrackReleased(audioTrackConfig);
     }
 
+    // MIREGO: use a distinct session for tunneling
     @Override
-    public void onAudioSessionIdChanged(int audioSessionId) {
+    public void onAudioSessionIdChanged(int audioSessionId, int tunnelingAudioSessionId) {
       if (SDK_INT >= 35 && loudnessCodecController != null) {
-        loudnessCodecController.setAudioSessionId(audioSessionId);
+        loudnessCodecController.setAudioSessionId(audioSessionId);  // smo here
       }
-      eventDispatcher.audioSessionIdChanged(audioSessionId);
+      eventDispatcher.audioSessionIdChanged(audioSessionId, tunnelingAudioSessionId);
     }
   }
 

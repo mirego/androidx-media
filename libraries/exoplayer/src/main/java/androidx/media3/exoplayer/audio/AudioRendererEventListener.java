@@ -165,7 +165,8 @@ public interface AudioRendererEventListener {
    *
    * @param audioSessionId The new audio session ID.
    */
-  default void onAudioSessionIdChanged(int audioSessionId) {}
+  // MIREGO: use a distinct session for tunneling
+  default void onAudioSessionIdChanged(int audioSessionId, int tunnelingAudioSessionId) {}
 
   /** Dispatches events to an {@link AudioRendererEventListener}. */
   final class EventDispatcher {
@@ -288,9 +289,10 @@ public interface AudioRendererEventListener {
     }
 
     /** Invokes {@link AudioRendererEventListener#onAudioSessionIdChanged}. */
-    public void audioSessionIdChanged(int audioSessionId) {
+    // MIREGO: use a distinct session for tunneling
+    public void audioSessionIdChanged(int audioSessionId, int tunnelingAudioSessionId) {
       if (handler != null) {
-        handler.post(() -> castNonNull(listener).onAudioSessionIdChanged(audioSessionId));
+        handler.post(() -> castNonNull(listener).onAudioSessionIdChanged(audioSessionId, tunnelingAudioSessionId));
       }
     }
   }
