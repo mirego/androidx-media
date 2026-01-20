@@ -466,6 +466,8 @@ public final class AudioTrackAudioOutput implements AudioOutput {
                 } finally {
                   if (audioTrackThreadHandler.getLooper().getThread().isAlive()) {
                     audioTrackThreadHandler.post(() -> listeners.sendEvent(Listener::onReleased));
+                  } else {
+                    listeners.sendEvent(Listener::onReleased);
                   }
                   synchronized (releaseExecutorLock) {
                     pendingReleaseCount--;
