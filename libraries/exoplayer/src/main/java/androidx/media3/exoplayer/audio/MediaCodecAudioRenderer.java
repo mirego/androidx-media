@@ -16,6 +16,7 @@
 package androidx.media3.exoplayer.audio;
 
 import static android.os.Build.VERSION.SDK_INT;
+import static androidx.media3.common.C.AUDIO_SESSION_ID_UNSET;
 import static androidx.media3.common.util.Assertions.checkNotNull;
 import static androidx.media3.exoplayer.DecoderReuseEvaluation.DISCARD_REASON_MAX_INPUT_SIZE_EXCEEDED;
 import static androidx.media3.exoplayer.DecoderReuseEvaluation.REUSE_RESULT_NO;
@@ -59,6 +60,7 @@ import androidx.media3.exoplayer.FormatHolder;
 import androidx.media3.exoplayer.MediaClock;
 import androidx.media3.exoplayer.PlayerMessage.Target;
 import androidx.media3.exoplayer.RendererCapabilities;
+import androidx.media3.exoplayer.RendererConfiguration;
 import androidx.media3.exoplayer.audio.AudioRendererEventListener.EventDispatcher;
 import androidx.media3.exoplayer.audio.AudioSink.InitializationException;
 import androidx.media3.exoplayer.audio.AudioSink.WriteException;
@@ -113,6 +115,9 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
   private final EventDispatcher eventDispatcher;
   private final AudioSink audioSink;
   @Nullable private final LoudnessCodecController loudnessCodecController;
+
+  // MIREGO: use a distinct session for tunneling
+  private Pair<Integer, Integer> audioSessionIds = new Pair(AUDIO_SESSION_ID_UNSET, AUDIO_SESSION_ID_UNSET);
 
   private int codecMaxInputSize;
   private boolean codecNeedsDiscardChannelsWorkaround;
@@ -701,6 +706,7 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
     } else {
       audioSink.disableTunneling();
     }
+    updateLoudnessCodecControllerAudioSessionId(); // MIREGO: use a distinct session for tunneling
     audioSink.setPlayerId(getPlayerId());
     audioSink.setClock(getClock());
   }
@@ -1072,10 +1078,18 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
   }
 
   // MIREGO: use a distinct session for tunneling
-  private void setAudioSessionId(Pair<Integer, Integer> audioSessionId) {
-    audioSink.setAudioSessionId(audioSessionId.first, audioSessionId.second);
+  private void setAudioSessionId(Pair<Integer, Integer> audioSessionIds) {
+    this.audioSessionIds = audioSessionIds;
+    audioSink.setAudioSessionId(audioSessionIds.first, audioSessionIds.second);
+    updateLoudnessCodecControllerAudioSessionId();
+  }
+
+  // MIREGO: use a distinct session for tunneling
+  private void updateLoudnessCodecControllerAudioSessionId() {
     if (SDK_INT >= 35 && loudnessCodecController != null) {
-      loudnessCodecController.setAudioSessionId(audioSessionId.first);  //smo todo
+      if (getState() == STATE_ENABLED) {
+        loudnessCodecController.setAudioSessionId(getConfiguration().tunneling ? audioSessionIds.second : audioSessionIds.first);
+      }
     }
   }
 
@@ -1209,9 +1223,8 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
     // MIREGO: use a distinct session for tunneling
     @Override
     public void onAudioSessionIdChanged(int audioSessionId, int tunnelingAudioSessionId) {
-      if (SDK_INT >= 35 && loudnessCodecController != null) {
-        loudnessCodecController.setAudioSessionId(audioSessionId);  // smo here
-      }
+      audioSessionIds = new Pair<>(audioSessionId, tunnelingAudioSessionId);
+      updateLoudnessCodecControllerAudioSessionId();
       eventDispatcher.audioSessionIdChanged(audioSessionId, tunnelingAudioSessionId);
     }
   }
