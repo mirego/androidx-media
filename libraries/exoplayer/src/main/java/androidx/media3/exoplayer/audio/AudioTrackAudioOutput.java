@@ -466,6 +466,8 @@ public final class AudioTrackAudioOutput implements AudioOutput {
                 } finally {
                   if (audioTrackThreadHandler.getLooper().getThread().isAlive()) {
                     audioTrackThreadHandler.post(() -> listeners.sendEvent(Listener::onReleased));
+                  } else { // MIREGO: that message should always be sent, otherwise the audio tracks count will not get decreased properly and stay > 0 indefinitely
+                    listeners.sendEvent(Listener::onReleased);
                   }
                   synchronized (releaseExecutorLock) {
                     pendingReleaseCount--;
