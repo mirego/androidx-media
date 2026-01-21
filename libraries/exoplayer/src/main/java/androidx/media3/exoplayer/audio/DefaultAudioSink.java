@@ -616,6 +616,7 @@ public final class DefaultAudioSink implements AudioSink {
   private boolean playing;
   private boolean externalAudioSessionIdProvided;
   private int audioSessionId;
+  private int tunnelingAudioSessionId; // MIREGO: use a distinct session for tunneling
   private boolean pendingAudioSessionIdChangeConfirmation;
   private AuxEffectInfo auxEffectInfo;
   @Nullable private AudioDeviceInfo preferredDevice;
@@ -645,6 +646,7 @@ public final class DefaultAudioSink implements AudioSink {
         ImmutableList.of(trimmingAudioProcessor, channelMappingAudioProcessor);
     volume = 1f;
     audioSessionId = C.AUDIO_SESSION_ID_UNSET;
+    tunnelingAudioSessionId = C.AUDIO_SESSION_ID_UNSET; // MIREGO: use a distinct session for tunneling
     auxEffectInfo = new AuxEffectInfo(AuxEffectInfo.NO_AUX_EFFECT_ID, 0f);
     mediaPositionParameters =
         new MediaPositionParameters(
@@ -881,8 +883,16 @@ public final class DefaultAudioSink implements AudioSink {
     startMediaTimeUsNeedsInit = true;
 
     int newAudioSessionId = audioOutput.getAudioSessionId();
-    boolean audioSessionIdChanged = newAudioSessionId != audioSessionId;
-    audioSessionId = newAudioSessionId;
+
+    // MIREGO: use a distinct session for tunneling
+    boolean audioSessionIdChanged;
+    if (tunneling) {
+      audioSessionIdChanged = newAudioSessionId != tunnelingAudioSessionId;
+      tunnelingAudioSessionId = newAudioSessionId;
+    } else {
+      audioSessionIdChanged = newAudioSessionId != audioSessionId;
+      audioSessionId = newAudioSessionId;
+    }
 
     if (listener != null) {
       listener.onAudioTrackInitialized(configuration.buildAudioTrackConfig());
@@ -890,17 +900,18 @@ public final class DefaultAudioSink implements AudioSink {
         pendingAudioSessionIdChangeConfirmation = true;
         configuration =
             configuration.copyWithOutputConfig(
-                configuration.outputConfig.buildUpon().setAudioSessionId(audioSessionId).build());
+                configuration.outputConfig.buildUpon().setAudioSessionId(newAudioSessionId).build());
         if (pendingConfiguration != null) {
           pendingConfiguration =
               pendingConfiguration.copyWithOutputConfig(
                   pendingConfiguration
                       .outputConfig
                       .buildUpon()
-                      .setAudioSessionId(audioSessionId)
+                      .setAudioSessionId(newAudioSessionId)
                       .build());
         }
-        listener.onAudioSessionIdChanged(audioSessionId);
+        // MIREGO: use a distinct session for tunneling
+        listener.onAudioSessionIdChanged(audioSessionId, tunnelingAudioSessionId);
       }
     }
 
@@ -1455,17 +1466,19 @@ public final class DefaultAudioSink implements AudioSink {
     return null;
   }
 
+  // MIREGO: use a distinct session for tunneling
   @Override
-  public void setAudioSessionId(int audioSessionId) {
+  public void setAudioSessionId(int audioSessionId, int tunnelingAudioSessionId) {
     if (pendingAudioSessionIdChangeConfirmation) {
-      if (this.audioSessionId == audioSessionId) {
+      if ((this.audioSessionId == audioSessionId) && (this.tunnelingAudioSessionId == tunnelingAudioSessionId)) {
         pendingAudioSessionIdChangeConfirmation = false;
       } else {
         return;
       }
     }
-    if (this.audioSessionId != audioSessionId) {
+    if ((this.audioSessionId != audioSessionId) || (this.tunnelingAudioSessionId != tunnelingAudioSessionId)) {
       this.audioSessionId = audioSessionId;
+      this.tunnelingAudioSessionId = tunnelingAudioSessionId;
       externalAudioSessionIdProvided = audioSessionId != C.AUDIO_SESSION_ID_UNSET;
       reconfigureAndFlush();
     }
@@ -1890,7 +1903,8 @@ public final class DefaultAudioSink implements AudioSink {
         .setEnablePlaybackParameters(preferAudioOutputPlaybackParameters)
         .setEnableOffload(offloadMode != AudioSink.OFFLOAD_MODE_DISABLED)
         .setPreferredDevice(preferredDevice)
-        .setAudioSessionId(audioSessionId)
+        // MIREGO: use a distinct session for tunneling
+        .setAudioSessionId(tunneling ? tunnelingAudioSessionId : audioSessionId)
         .setEnableTunneling(tunneling)
         .setPreferredBufferSize(preferredBufferSize)
         .setVirtualDeviceId(virtualDeviceId)

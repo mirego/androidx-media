@@ -147,9 +147,10 @@ public class ForwardingAudioSink implements AudioSink {
     return sink.getAudioCapabilities();
   }
 
+  // MIREGO: use a distinct session for tunneling
   @Override
-  public void setAudioSessionId(int audioSessionId) {
-    sink.setAudioSessionId(audioSessionId);
+  public void setAudioSessionId(int audioSessionId, int tunnelingAudioSessionId) {
+    sink.setAudioSessionId(audioSessionId, tunnelingAudioSessionId);
   }
 
   @Override

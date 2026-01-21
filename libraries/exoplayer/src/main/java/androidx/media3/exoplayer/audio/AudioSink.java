@@ -161,11 +161,12 @@ public interface AudioSink {
      * Called when the audio session ID changed internally.
      *
      * <p>The audio sink will ignore new externally set audio session IDs until this ID has been
-     * acknowledged with {@link #setAudioSessionId(int)}.
+     * acknowledged with {@link #setAudioSessionId(int, int)}.
      *
      * @param audioSessionId The new audio session ID.
      */
-    default void onAudioSessionIdChanged(int audioSessionId) {}
+    // MIREGO: use a distinct session for tunneling
+    default void onAudioSessionIdChanged(int audioSessionId, int tunnelingAudioSessionId) {}
   }
 
   /** Configuration parameters used for an {@link AudioTrack}. */
@@ -597,8 +598,8 @@ public interface AudioSink {
     return null;
   }
 
-  /** Sets the audio session id. */
-  void setAudioSessionId(int audioSessionId);
+  /** Sets the audio session id. */ // MIREGO: use a distinct session for tunneling
+  void setAudioSessionId(int audioSessionId, int tunnelingAudioSessionId);
 
   /** Sets the auxiliary effect. */
   void setAuxEffectInfo(AuxEffectInfo auxEffectInfo);

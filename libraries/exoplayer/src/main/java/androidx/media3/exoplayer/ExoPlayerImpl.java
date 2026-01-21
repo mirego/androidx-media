@@ -188,7 +188,8 @@ import java.util.function.IntConsumer;
   private final WifiLockManager wifiLockManager;
   private final long detachSurfaceTimeoutMs;
   @Nullable private final SuitableOutputChecker suitableOutputChecker;
-  private final BackgroundThreadStateHandler<Integer> audioSessionIdState;
+  // MIREGO: use a distinct session for tunneling
+  private final BackgroundThreadStateHandler<Pair<Integer, Integer>> audioSessionIdState;
   private final StuckPlayerDetector stuckPlayerDetector;
   @Nullable private final VirtualDeviceIdChangeListener virtualDeviceIdChangeListener;
   private final CodecParameterListenerManager audioListenerManager;
@@ -422,20 +423,25 @@ import java.util.function.IntConsumer;
 
       audioSessionIdState =
           new BackgroundThreadStateHandler<>(
-              /* initialState= */ AUDIO_SESSION_ID_UNSET,
+              // MIREGO: use a distinct session for tunneling
+              /* initialState= */ new Pair<>(AUDIO_SESSION_ID_UNSET, AUDIO_SESSION_ID_UNSET),
               /* backgroundLooper= */ playbackLooper,
               /* foregroundLooper= */ applicationLooper,
               clock,
               /* onStateChanged= */ this::onAudioSessionIdChanged);
       audioSessionIdState.runInBackground(
           () -> {
-            int newAudioSessionId = Util.generateAudioSessionIdV21(applicationContext);
-            if (audioSessionIdState.get() != newAudioSessionId) {
-              audioSessionIdState.setStateInBackground(newAudioSessionId);
+            // MIREGO: use a distinct session for tunneling
+            Pair<Integer, Integer> newAudioSessionIds =
+                new Pair<>(
+                    Util.generateAudioSessionIdV21(applicationContext),
+                    Util.generateAudioSessionIdV21(applicationContext));
+            if (!audioSessionIdState.get().equals(newAudioSessionIds)) {
+              audioSessionIdState.setStateInBackground(newAudioSessionIds);
               // Provide the audio session ID to the renderers on playback thread to prevent race
               // condition with player preparation.
-              sendRendererMessage(TRACK_TYPE_AUDIO, MSG_SET_AUDIO_SESSION_ID, newAudioSessionId);
-              sendRendererMessage(TRACK_TYPE_VIDEO, MSG_SET_AUDIO_SESSION_ID, newAudioSessionId);
+              sendRendererMessage(TRACK_TYPE_AUDIO, MSG_SET_AUDIO_SESSION_ID, newAudioSessionIds);
+              sendRendererMessage(TRACK_TYPE_VIDEO, MSG_SET_AUDIO_SESSION_ID, newAudioSessionIds);
             }
           });
       audioBecomingNoisyManager =
@@ -1609,25 +1615,29 @@ import java.util.function.IntConsumer;
     return audioAttributes;
   }
 
+  // MIREGO: use a distinct session for tunneling
   @Override
   public void setAudioSessionId(int audioSessionId) {
     verifyApplicationThread();
-    if (audioSessionIdState.get() == audioSessionId) {
+
+    Pair<Integer, Integer> currentSessions = audioSessionIdState.get();
+
+    if (currentSessions.first == audioSessionId && currentSessions.second == audioSessionId) {
       return;
     }
     audioSessionIdState.updateStateAsync(
         /* placeholderState= */ previousId ->
-            audioSessionId != AUDIO_SESSION_ID_UNSET ? audioSessionId : previousId,
+            audioSessionId != AUDIO_SESSION_ID_UNSET ? new Pair(audioSessionId, audioSessionId) : previousId,
         /* backgroundStateUpdate= */ previousId ->
             audioSessionId != AUDIO_SESSION_ID_UNSET
-                ? audioSessionId
-                : Util.generateAudioSessionIdV21(applicationContext));
+                ? new Pair(audioSessionId, audioSessionId)
+                : new Pair(Util.generateAudioSessionIdV21(applicationContext), Util.generateAudioSessionIdV21(applicationContext)));
   }
 
   @Override
   public int getAudioSessionId() {
     verifyApplicationThread();
-    return audioSessionIdState.get();
+    return audioSessionIdState.get().first; // MIREGO: use a distinct session for tunneling
   }
 
   @Override
@@ -3203,12 +3213,13 @@ import java.util.function.IntConsumer;
     }
   }
 
-  private void onAudioSessionIdChanged(int oldAudioSessionId, int newAudioSessionId) {
+  // MIREGO: use a distinct session for tunneling
+  private void onAudioSessionIdChanged(Pair<Integer, Integer> oldAudioSessionId, Pair<Integer, Integer> newAudioSessionIds) {
     verifyApplicationThread();
-    sendRendererMessage(TRACK_TYPE_AUDIO, MSG_SET_AUDIO_SESSION_ID, newAudioSessionId);
-    sendRendererMessage(TRACK_TYPE_VIDEO, MSG_SET_AUDIO_SESSION_ID, newAudioSessionId);
+    sendRendererMessage(TRACK_TYPE_AUDIO, MSG_SET_AUDIO_SESSION_ID, newAudioSessionIds);
+    sendRendererMessage(TRACK_TYPE_VIDEO, MSG_SET_AUDIO_SESSION_ID, newAudioSessionIds);
     listeners.sendEvent(
-        EVENT_AUDIO_SESSION_ID, listener -> listener.onAudioSessionIdChanged(newAudioSessionId));
+        EVENT_AUDIO_SESSION_ID, listener -> listener.onAudioSessionIdChanged(newAudioSessionIds.first));
   }
 
   private static DeviceInfo createDeviceInfo(@Nullable StreamVolumeManager streamVolumeManager) {
@@ -3480,11 +3491,13 @@ import java.util.function.IntConsumer;
       analyticsCollector.onAudioTrackReleased(audioTrackConfig);
     }
 
+
+    // MIREGO: use a distinct session for tunneling
     @Override
-    public void onAudioSessionIdChanged(int audioSessionId) {
+    public void onAudioSessionIdChanged(int audioSessionId, int tunnelingAudioSessionId) {
       audioSessionIdState.updateStateAsync(
-          /* placeholderState= */ previousId -> audioSessionId,
-          /* backgroundStateUpdate= */ previousId -> audioSessionId);
+          /* placeholderState= */ previousId -> new Pair(audioSessionId, tunnelingAudioSessionId),
+          /* backgroundStateUpdate= */ previousId -> new Pair(audioSessionId, tunnelingAudioSessionId));
     }
 
     @Override

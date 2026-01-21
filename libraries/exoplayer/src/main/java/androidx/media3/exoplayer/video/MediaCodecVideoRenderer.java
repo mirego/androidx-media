@@ -1318,7 +1318,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
         }
         break;
       case MSG_SET_AUDIO_SESSION_ID:
-        int tunnelingAudioSessionId = (int) checkNotNull(message);
+        // MIREGO: use a distinct session for tunneling
+        Pair<Integer, Integer> sessionIds = (Pair<Integer, Integer>) checkNotNull(message);
+        int tunnelingAudioSessionId = sessionIds.second;
         if (this.tunnelingAudioSessionId != tunnelingAudioSessionId) {
           this.tunnelingAudioSessionId = tunnelingAudioSessionId;
           if (tunneling) {

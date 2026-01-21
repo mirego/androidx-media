@@ -16,6 +16,7 @@
 package androidx.media3.exoplayer.audio;
 
 import static android.os.Build.VERSION.SDK_INT;
+import static androidx.media3.common.C.AUDIO_SESSION_ID_UNSET;
 import static androidx.media3.exoplayer.DecoderReuseEvaluation.DISCARD_REASON_MAX_INPUT_SIZE_EXCEEDED;
 import static androidx.media3.exoplayer.DecoderReuseEvaluation.REUSE_RESULT_NO;
 import static com.google.common.base.MoreObjects.firstNonNull;
@@ -59,6 +60,7 @@ import androidx.media3.exoplayer.FormatHolder;
 import androidx.media3.exoplayer.MediaClock;
 import androidx.media3.exoplayer.PlayerMessage.Target;
 import androidx.media3.exoplayer.RendererCapabilities;
+import androidx.media3.exoplayer.RendererConfiguration;
 import androidx.media3.exoplayer.audio.AudioRendererEventListener.EventDispatcher;
 import androidx.media3.exoplayer.audio.AudioSink.InitializationException;
 import androidx.media3.exoplayer.audio.AudioSink.WriteException;
@@ -128,6 +130,9 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
   private final EventDispatcher eventDispatcher;
   private final AudioSink audioSink;
   @Nullable private final LoudnessCodecController loudnessCodecController;
+
+  // MIREGO: use a distinct session for tunneling
+  private Pair<Integer, Integer> audioSessionIds = new Pair(AUDIO_SESSION_ID_UNSET, AUDIO_SESSION_ID_UNSET);
 
   private int codecMaxInputSize;
   private boolean codecNeedsDiscardChannelsWorkaround;
@@ -723,6 +728,7 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
     } else {
       audioSink.disableTunneling();
     }
+    updateLoudnessCodecControllerAudioSessionId(); // MIREGO: use a distinct session for tunneling
     audioSink.setPlayerId(getPlayerId());
     audioSink.setClock(getClock());
     audioSink.setListener(new AudioSinkListener());
@@ -993,7 +999,8 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
         audioSink.setSkipSilenceEnabled((Boolean) checkNotNull(message));
         break;
       case MSG_SET_AUDIO_SESSION_ID:
-        setAudioSessionId((int) checkNotNull(message));
+        // MIREGO: use a distinct session for tunneling
+        setAudioSessionId((Pair<Integer, Integer>) checkNotNull(message));
         break;
       case MSG_SET_PRIORITY:
         rendererPriority = (int) checkNotNull(message);
@@ -1145,10 +1152,19 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
     return mediaFormat;
   }
 
-  private void setAudioSessionId(int audioSessionId) {
-    audioSink.setAudioSessionId(audioSessionId);
+  // MIREGO: use a distinct session for tunneling
+  private void setAudioSessionId(Pair<Integer, Integer> audioSessionIds) {
+    this.audioSessionIds = audioSessionIds;
+    audioSink.setAudioSessionId(audioSessionIds.first, audioSessionIds.second);
+    updateLoudnessCodecControllerAudioSessionId();
+  }
+
+  // MIREGO: use a distinct session for tunneling
+  private void updateLoudnessCodecControllerAudioSessionId() {
     if (SDK_INT >= 35 && loudnessCodecController != null) {
-      loudnessCodecController.setAudioSessionId(audioSessionId);
+      if (getState() == STATE_ENABLED) {
+        loudnessCodecController.setAudioSessionId(getConfiguration().tunneling ? audioSessionIds.second : audioSessionIds.first);
+      }
     }
   }
 
@@ -1280,12 +1296,12 @@ public class MediaCodecAudioRenderer extends MediaCodecRenderer implements Media
       eventDispatcher.audioTrackReleased(audioTrackConfig);
     }
 
+    // MIREGO: use a distinct session for tunneling
     @Override
-    public void onAudioSessionIdChanged(int audioSessionId) {
-      if (SDK_INT >= 35 && loudnessCodecController != null) {
-        loudnessCodecController.setAudioSessionId(audioSessionId);
-      }
-      eventDispatcher.audioSessionIdChanged(audioSessionId);
+    public void onAudioSessionIdChanged(int audioSessionId, int tunnelingAudioSessionId) {
+      audioSessionIds = new Pair<>(audioSessionId, tunnelingAudioSessionId);
+      updateLoudnessCodecControllerAudioSessionId();
+      eventDispatcher.audioSessionIdChanged(audioSessionId, tunnelingAudioSessionId);
     }
   }
 }

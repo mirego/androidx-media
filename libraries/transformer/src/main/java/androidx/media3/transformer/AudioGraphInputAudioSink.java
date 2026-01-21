@@ -314,8 +314,9 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
     return false;
   }
 
+  // MIREGO: use a distinct session for tunneling
   @Override
-  public void setAudioSessionId(int audioSessionId) {}
+  public void setAudioSessionId(int audioSessionId, int tunnelingAudioSessionId) {}
 
   @Override
   public void setAuxEffectInfo(AuxEffectInfo auxEffectInfo) {}
