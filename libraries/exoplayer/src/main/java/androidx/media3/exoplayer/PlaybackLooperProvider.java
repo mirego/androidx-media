@@ -102,7 +102,7 @@ public final class PlaybackLooperProvider {
       checkState(referenceCount > 0);
       referenceCount--;
       if (referenceCount == 0 && internalPlaybackThread != null) {
-        internalPlaybackThread.quit();
+        internalPlaybackThread.quitSafely(); // MIREGO: make sure the audioTrackThreadHandler messages are handled
         internalPlaybackThread = null;
         playbackLooper = null;
       }
