@@ -29,6 +29,7 @@ import static java.lang.annotation.ElementType.TYPE_USE;
 import android.media.AudioDeviceInfo;
 import android.os.Handler;
 import android.os.SystemClock;
+import android.util.Pair;
 import androidx.annotation.CallSuper;
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
@@ -804,7 +805,9 @@ public abstract class DecoderAudioRenderer<
         audioSink.setSkipSilenceEnabled((Boolean) message);
         break;
       case MSG_SET_AUDIO_SESSION_ID:
-        audioSink.setAudioSessionId((Integer) message);
+        // MIREGO: use a distinct session for tunneling
+        Pair<Integer, Integer> sessionIds = (Pair<Integer, Integer>) message;
+        audioSink.setAudioSessionId(sessionIds.first, sessionIds.second);
         break;
       case MSG_SET_PREFERRED_AUDIO_DEVICE:
         audioSink.setPreferredDevice((AudioDeviceInfo) message);
@@ -999,9 +1002,10 @@ public abstract class DecoderAudioRenderer<
       eventDispatcher.audioTrackReleased(audioTrackConfig);
     }
 
+    // MIREGO: use a distinct session for tunneling
     @Override
-    public void onAudioSessionIdChanged(int audioSessionId) {
-      eventDispatcher.audioSessionIdChanged(audioSessionId);
+    public void onAudioSessionIdChanged(int audioSessionId, int tunnelingAudioSessionId) {
+      eventDispatcher.audioSessionIdChanged(audioSessionId, tunnelingAudioSessionId);
     }
 
     @Override
