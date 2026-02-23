@@ -17,7 +17,6 @@ package androidx.media3.exoplayer.video;
 
 import static android.os.Build.VERSION.SDK_INT;
 import static android.view.Display.DEFAULT_DISPLAY;
-import static androidx.media3.common.C.TRACK_TYPE_VIDEO;
 import static androidx.media3.common.util.Assertions.checkNotNull;
 import static androidx.media3.common.util.Assertions.checkState;
 import static androidx.media3.common.util.Assertions.checkStateNotNull;
@@ -676,6 +675,11 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
   @Override
   protected @Capabilities int supportsFormat(MediaCodecSelector mediaCodecSelector, Format format)
       throws DecoderQueryException {
+
+    // MIREGO: fallback to other tracks when drm has failed on a format
+    if (drmUnsupportedFormatSet.contains(format.id)) {
+      return RendererCapabilities.create(C.FORMAT_UNSUPPORTED_DRM);
+    }
     return supportsFormatInternal(context, mediaCodecSelector, format);
   }
 
