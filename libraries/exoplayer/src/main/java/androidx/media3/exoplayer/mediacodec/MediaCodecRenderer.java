@@ -88,8 +88,10 @@ import java.lang.annotation.Target;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayDeque;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.RequiresNonNull;
 
@@ -415,6 +417,8 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
   // MIREGO: added the following field and 2 functions to log and debug a specific issue (rendering pipleine stall)
   // MIREGO: once the issue is solved, we should get rid of that code
   protected boolean hasReportedRenderingStall = false;
+
+  private boolean drmFailedOnFormat = false; // MIREGO: fallback to different tracks when DRM fails
 
   void saveFeedInputBufferStep(int stepIndex) {
     if (getTrackType() == TRACK_TYPE_AUDIO) {
@@ -774,6 +778,10 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
       long offsetUs,
       MediaSource.MediaPeriodId mediaPeriodId)
       throws ExoPlaybackException {
+
+    // MIREGO: fallback on DRM fail. A new track has been selected, we can try playback with the new format
+    drmFailedOnFormat = false;
+
     if (outputStreamInfo.streamOffsetUs == C.TIME_UNSET) {
       // This is the first stream.
       setOutputStreamInfo(
@@ -845,7 +853,6 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
   @Override
   protected void onReset() {
     hasReportedRenderingStall = false;
-
     try {
       disableBypass();
       releaseCodec();
@@ -932,6 +939,12 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
         renderToEndOfStream();
         return;
       }
+
+      // MIREGO: fallback on DRM fail. We want to wait until a new track has been selected, otherwise we'll just get the same error on the same format
+      if (inputFormat == null && drmFailedOnFormat) {
+        return;
+      }
+
       if (inputFormat == null && !readSourceOmittingSampleData(FLAG_REQUIRE_FORMAT)) {
         // We still don't have a format and can't make progress without one.
         return;
@@ -972,8 +985,16 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
       }
       decoderCounters.ensureUpdated();
     } catch (MediaCodec.CryptoException e) {
-      throw createRendererException(
-          e, inputFormat, Util.getErrorCodeForMediaDrmErrorCode(e.getErrorCode()));
+      // MIREGO: modified catch block to fallback to other tracks on DRM errors
+      if (maybeHandleCryptoError(inputFormat)) {
+        Log.d(TAG, "handle crypto exception for format %s", inputFormat);
+        inputFormat = null;
+        drmFailedOnFormat = true;
+        onRendererCapabilitiesChanged();
+      } else {
+        throw createRendererException(
+            e, inputFormat, Util.getErrorCodeForMediaDrmErrorCode(e.getErrorCode()));
+      }
     } catch (IllegalStateException e) {
       if (isMediaCodecException(e)) {
         onCodecError(e);
@@ -992,6 +1013,11 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
       }
       throw e;
     }
+  }
+
+  // MIREGO: fallback to other tracks on DRM errors
+  protected boolean maybeHandleCryptoError(Format format) {
+    return false;
   }
 
   /**
