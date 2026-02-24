@@ -93,7 +93,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.PriorityQueue;
 import java.util.Set;
-import javax.annotation.Nonnull;
 import org.checkerframework.checker.initialization.qual.Initialized;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.RequiresNonNull;
@@ -438,7 +437,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
   private static final long NOTIFY_QUEUED_FRAMES_THRESHOLD = 100;
 
   // MIREGO: fallback to different tracks when DRM fails
-  protected Set<String> drmUnsupportedFormatSet = new HashSet<>();
+  private final Set<String> drmUnsupportedFormatSet = new HashSet<>();
 
   /**
    * @param context A context.
