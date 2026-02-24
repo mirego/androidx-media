@@ -17,7 +17,6 @@ package androidx.media3.exoplayer.video;
 
 import static android.os.Build.VERSION.SDK_INT;
 import static android.view.Display.DEFAULT_DISPLAY;
-import static androidx.media3.common.C.TRACK_TYPE_VIDEO;
 import static androidx.media3.exoplayer.DecoderReuseEvaluation.DISCARD_REASON_MAX_INPUT_SIZE_EXCEEDED;
 import static androidx.media3.exoplayer.DecoderReuseEvaluation.DISCARD_REASON_VIDEO_FRAME_RATE_CHANGED;
 import static androidx.media3.exoplayer.DecoderReuseEvaluation.DISCARD_REASON_VIDEO_MAX_RESOLUTION_EXCEEDED;
@@ -97,8 +96,10 @@ import androidx.media3.exoplayer.video.VideoRendererEventListener.EventDispatche
 import com.google.common.collect.ImmutableList;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.nio.ByteBuffer;
+import java.util.HashSet;
 import java.util.List;
 import java.util.PriorityQueue;
+import java.util.Set;
 import org.checkerframework.checker.initialization.qual.Initialized;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.RequiresNonNull;
@@ -509,6 +510,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
   private static final long IGNORE_PRIMING_DROPPED_FRAMES_MS = 400; // when the tunneling is priming, it's expected that we'll get dropped frames. Ignore them.
   private static final long NOTIFY_QUEUED_FRAMES_THRESHOLD = 100;
 
+  // MIREGO: fallback to different tracks when DRM fails
+  private final Set<String> drmUnsupportedFormatSet = new HashSet<>();
+
   /**
    * @param context A context.
    * @param mediaCodecSelector A decoder selector.
@@ -753,6 +757,11 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
   @Override
   protected @Capabilities int supportsFormat(MediaCodecSelector mediaCodecSelector, Format format)
       throws DecoderQueryException {
+
+    // MIREGO: fallback to other tracks when drm has failed on a format
+    if (drmUnsupportedFormatSet.contains(format.id)) {
+      return RendererCapabilities.create(C.FORMAT_UNSUPPORTED_DRM);
+    }
     return supportsFormatInternal(context, mediaCodecSelector, format);
   }
 
@@ -1268,6 +1277,9 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
 
   @Override
   protected void onReset() {
+    // MIREGO: fallback to different tracks when DRM fails, reset the formats set on new playback
+    drmUnsupportedFormatSet.clear();
+
     try {
       super.onReset();
     } finally {
@@ -2877,6 +2889,19 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
   protected MediaCodecDecoderException createDecoderException(
       Throwable cause, @Nullable MediaCodecInfo codecInfo) {
     return new MediaCodecVideoDecoderException(cause, codecInfo, displaySurface);
+  }
+
+  // MIREGO: fallback to other tracks on DRM errors
+  @Override
+  protected boolean maybeHandleCryptoError(Format format) {
+    // if the format is HD, it's most likely a DRM restriction, we can try to fallback to other formats
+    // if the format is SD, we assume this is an unexpected error and do not try to fall back
+    if (Util.switchTrackOnDrmErrors &&
+        ((format.width >= 1280) || (format.height >= 720))) {
+      drmUnsupportedFormatSet.add(format.id);
+      return true;
+    }
+    return false;
   }
 
   /**
