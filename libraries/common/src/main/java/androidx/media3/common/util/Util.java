@@ -205,6 +205,8 @@ public final class Util {
 
   public static boolean workaroundAudioVolumePlatformGlitch = false;
 
+  public static boolean switchTrackOnDrmErrors = false; // MIREGO: fallback to different tracks when DRM fails
+
   // TEMP DEBUG STUFF (to investigate an infinite buffering issue caused by what seems to be a video codec stall)
   public static int videoLastFeedInputBufferStep = 0;
   public static int audioLastFeedInputBufferStep = 0;
