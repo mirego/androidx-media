@@ -36,37 +36,37 @@ jobs:
           cache: "gradle"
 
       - name: Build and publish exoplayer
-        run: cd libraries/exoplayer && ../../gradlew publish
+        run: cd libraries/exoplayer && ../../gradlew publish -Dcom.amazonaws.sdk.s3.defaultStreamBufferSize=104857600
 
       - name: Build and publish dash
-        run: cd libraries/exoplayer_dash && ../../gradlew publish
+        run: cd libraries/exoplayer_dash && ../../gradlew publish -Dcom.amazonaws.sdk.s3.defaultStreamBufferSize=104857600
 
       - name: Build and publish hls
-        run: cd libraries/exoplayer_hls && ../../gradlew publish
+        run: cd libraries/exoplayer_hls && ../../gradlew publish -Dcom.amazonaws.sdk.s3.defaultStreamBufferSize=104857600
 
       - name: Build and publish ima
-        run: cd libraries/exoplayer_ima && ../../gradlew publish
+        run: cd libraries/exoplayer_ima && ../../gradlew publish -Dcom.amazonaws.sdk.s3.defaultStreamBufferSize=104857600
 
       - name: Build and publish ui
-        run: cd libraries/ui && ../../gradlew publish
+        run: cd libraries/ui && ../../gradlew publish -Dcom.amazonaws.sdk.s3.defaultStreamBufferSize=104857600
 
       - name: Build and publish common
-        run: cd libraries/common && ../../gradlew publish
+        run: cd libraries/common && ../../gradlew publish -Dcom.amazonaws.sdk.s3.defaultStreamBufferSize=104857600
 
       - name: Build and publish datasource
-        run: cd libraries/datasource && ../../gradlew publish
+        run: cd libraries/datasource && ../../gradlew publish -Dcom.amazonaws.sdk.s3.defaultStreamBufferSize=104857600
 
       - name: Build and publish extractor
-        run: cd libraries/extractor && ../../gradlew publish
+        run: cd libraries/extractor && ../../gradlew publish -Dcom.amazonaws.sdk.s3.defaultStreamBufferSize=104857600
 
       - name: Build and publish decoder
-        run: cd libraries/decoder && ../../gradlew publish
+        run: cd libraries/decoder && ../../gradlew publish -Dcom.amazonaws.sdk.s3.defaultStreamBufferSize=104857600
 
       - name: Build and publish database
-        run: cd libraries/database && ../../gradlew publish
+        run: cd libraries/database && ../../gradlew publish -Dcom.amazonaws.sdk.s3.defaultStreamBufferSize=104857600
 
       - name: Build and publish okhttp
-        run: cd libraries/datasource_okhttp && ../../gradlew publish
+        run: cd libraries/datasource_okhttp && ../../gradlew publish -Dcom.amazonaws.sdk.s3.defaultStreamBufferSize=104857600
 
       - name: Build and publish container
-        run: cd libraries/container && ../../gradlew publish
+        run: cd libraries/container && ../../gradlew publish -Dcom.amazonaws.sdk.s3.defaultStreamBufferSize=104857600
