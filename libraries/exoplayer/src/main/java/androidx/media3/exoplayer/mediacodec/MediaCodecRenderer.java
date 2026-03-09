@@ -989,9 +989,7 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
       if (maybeHandleCryptoError(inputFormat)) {
         Log.d(TAG, "handle crypto exception for format %s", inputFormat);
 
-        //flushCodec();
         releaseCodec();
-
         inputFormat = null;
         drmFailedOnFormat = true;
         onRendererCapabilitiesChanged();
