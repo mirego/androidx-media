@@ -1042,6 +1042,8 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
       // MIREGO: modified catch block to fallback to other tracks on DRM errors
       if (maybeHandleCryptoError(inputFormat)) {
         Log.d(TAG, "handle crypto exception for format %s", inputFormat);
+
+        releaseCodec();
         inputFormat = null;
         drmFailedOnFormat = true;
         onRendererCapabilitiesChanged();
