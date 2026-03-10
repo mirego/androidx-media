@@ -123,6 +123,12 @@ public final class FrameworkMediaDrm implements ExoMediaDrm {
     }
   }
 
+  // MIREGO added access to android MediaDrm
+  @Override
+  public MediaDrm getMediaDrm() {
+    return mediaDrm;
+  }
+
   @UnstableApi
   @Override
   public void setOnEventListener(@Nullable ExoMediaDrm.OnEventListener listener) {

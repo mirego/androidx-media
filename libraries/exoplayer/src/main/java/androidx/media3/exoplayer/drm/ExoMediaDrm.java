@@ -441,6 +441,11 @@ public interface ExoMediaDrm {
    * @return The generated key request.
    * @see MediaDrm#getKeyRequest(byte[], byte[], String, int, HashMap)
    */
+
+  // MIREGO added access to android MediaDrm
+  @Nullable
+  default MediaDrm getMediaDrm() {return null;}
+
   KeyRequest getKeyRequest(
       byte[] scope,
       @Nullable List<SchemeData> schemeDatas,
