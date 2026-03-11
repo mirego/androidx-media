@@ -315,6 +315,9 @@ public class PlaybackException extends Exception {
   /** MIREGO: Caused by a Drm offline key hashcode not found in the hash codes array */
   public static final int ERROR_CODE_OFFLINE_DRM_HASH_CODE_NOT_FOUND = 5907;
 
+  /** MIREGO: Caused by tracks restriction preventing the selection of a video track */
+  public static final int ERROR_CODE_NO_VIDEO_TRACK_ELIGIBLE = 5908;
+  
   // DRM errors (6xxx).
 
   /** Caused by an unspecified error related to DRM protection. */
@@ -490,6 +493,8 @@ public class PlaybackException extends Exception {
         return "ERROR_CODE_VIDEO_CODEC_STALLED";
       case ERROR_CODE_OFFLINE_DRM_HASH_CODE_NOT_FOUND:
         return "ERROR_CODE_OFFLINE_DRM_HASH_CODE_NOT_FOUND";
+      case ERROR_CODE_NO_VIDEO_TRACK_ELIGIBLE:
+        return "ERROR_CODE_NO_VIDEO_TRACK_ELIGIBLE";
 
       default:
         if (errorCode >= CUSTOM_ERROR_CODE_BASE) {
