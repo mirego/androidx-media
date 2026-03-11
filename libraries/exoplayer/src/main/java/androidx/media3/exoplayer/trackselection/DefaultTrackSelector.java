@@ -3070,11 +3070,11 @@ public class DefaultTrackSelector extends MappingTrackSelector
             T trackInfo = trackInfos.get(trackIndex);
             @SelectionEligibility int eligibility = trackInfo.getSelectionEligibility();
 
-            // MIREGO added to notify error when all video tracks are restricted
-            if (trackInfo.getSelectionEligibility() == SELECTION_ELIGIBILITY_NO) {
-              hasNoEligibleTrack = true;
-            }
             if (usedTrackInSelection[trackIndex] || eligibility == SELECTION_ELIGIBILITY_NO) {
+              // MIREGO added to notify error when all video tracks are restricted
+              if (eligibility == SELECTION_ELIGIBILITY_NO) {
+                hasNoEligibleTrack = true;
+              }
               continue;
             }
             List<T> selection;
