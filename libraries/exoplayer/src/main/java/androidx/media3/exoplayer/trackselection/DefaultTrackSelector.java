@@ -51,6 +51,7 @@ import androidx.media3.common.C;
 import androidx.media3.common.C.RoleFlags;
 import androidx.media3.common.Format;
 import androidx.media3.common.MimeTypes;
+import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Timeline;
 import androidx.media3.common.TrackGroup;
 import androidx.media3.common.TrackSelectionOverride;
@@ -3054,6 +3055,9 @@ public class DefaultTrackSelector extends MappingTrackSelector
       Comparator<List<T>> selectionComparator) {
     ArrayList<List<T>> possibleSelections = new ArrayList<>();
     int rendererCount = mappedTrackInfo.getRendererCount();
+
+    boolean hasNoEligibleTrack = false; // MIREGO added to notify error when all video tracks are restricted
+
     for (int rendererIndex = 0; rendererIndex < rendererCount; rendererIndex++) {
       if (trackType == mappedTrackInfo.getRendererType(rendererIndex)) {
         TrackGroupArray groups = mappedTrackInfo.getTrackGroups(rendererIndex);
@@ -3065,7 +3069,12 @@ public class DefaultTrackSelector extends MappingTrackSelector
           for (int trackIndex = 0; trackIndex < trackGroup.length; trackIndex++) {
             T trackInfo = trackInfos.get(trackIndex);
             @SelectionEligibility int eligibility = trackInfo.getSelectionEligibility();
+
             if (usedTrackInSelection[trackIndex] || eligibility == SELECTION_ELIGIBILITY_NO) {
+              // MIREGO added to notify error when all video tracks are restricted
+              if (eligibility == SELECTION_ELIGIBILITY_NO) {
+                hasNoEligibleTrack = true;
+              }
               continue;
             }
             List<T> selection;
@@ -3094,6 +3103,12 @@ public class DefaultTrackSelector extends MappingTrackSelector
       }
     }
     if (possibleSelections.isEmpty()) {
+      // MIREGO added to notify error when all video tracks are restricted
+      if (trackType == C.TRACK_TYPE_VIDEO && hasNoEligibleTrack) {
+        Log.e(TAG,
+            new PlaybackException("No video track selected (none eligible)", new RuntimeException(),
+                PlaybackException.ERROR_CODE_NO_VIDEO_TRACK_ELIGIBLE));
+      }
       return null;
     }
     List<T> bestSelection = max(possibleSelections, selectionComparator);
