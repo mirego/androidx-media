@@ -423,7 +423,7 @@ public class DefaultRenderersFactory implements RenderersFactory {
    * @param out An array to which the built renderers should be appended.
    */
   protected void buildVideoRenderers(
-      // MIREGO: Adds ability to use a custom MediaCodecVideoRenderer by providing a  custom builder for it.
+      // MIREGO: Adds ability to use a custom MediaCodecVideoRenderer by providing a custom builder for it.
       MediaCodecVideoRenderer.Builder videoRendererBuilder,
       @ExtensionRendererMode int extensionRendererMode,
       MediaCodecSelector mediaCodecSelector,
@@ -432,7 +432,7 @@ public class DefaultRenderersFactory implements RenderersFactory {
       VideoRendererEventListener eventListener,
       long allowedVideoJoiningTimeMs,
       ArrayList<Renderer> out) {
-    // MIREGO: Adds ability to use a custom MediaCodecVideoRenderer by providing a  custom builder for it.
+    // MIREGO: Adds ability to use a custom MediaCodecVideoRenderer by providing a custom builder for it.
     videoRendererBuilder
         .setCodecAdapterFactory(getCodecAdapterFactory())
         .setMediaCodecSelector(mediaCodecSelector)
