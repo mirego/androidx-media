@@ -270,7 +270,8 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
   private long nextOutputBufferToProcessPresentationTimeUs;
 
   /** A builder to create {@link MediaCodecVideoRenderer} instances. */
-  public static final class Builder {
+  // MIREGO: Make class non-final to allow custom Builder subclass to be provided to DefaultRenderersFactory.buildVideoRenderers.
+  public static class Builder {
     private final Context context;
     private boolean buildCalled;
     private MediaCodecSelector mediaCodecSelector;

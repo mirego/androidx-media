@@ -482,7 +482,8 @@ public class DefaultRenderersFactory implements RenderersFactory {
    * @param out An array to which the built renderers should be appended.
    */
   protected void buildVideoRenderers(
-      Context context,
+      // MIREGO: Adds ability to use a custom MediaCodecVideoRenderer by providing a custom builder for it.
+      MediaCodecVideoRenderer.Builder videoRendererBuilder,
       @ExtensionRendererMode int extensionRendererMode,
       MediaCodecSelector mediaCodecSelector,
       boolean enableDecoderFallback,
@@ -490,18 +491,18 @@ public class DefaultRenderersFactory implements RenderersFactory {
       VideoRendererEventListener eventListener,
       long allowedVideoJoiningTimeMs,
       ArrayList<Renderer> out) {
-    MediaCodecVideoRenderer.Builder videoRendererBuilder =
-        new MediaCodecVideoRenderer.Builder(context)
-            .setCodecAdapterFactory(getCodecAdapterFactory())
-            .setMediaCodecSelector(mediaCodecSelector)
-            .setAllowedJoiningTimeMs(allowedVideoJoiningTimeMs)
-            .setEnableDecoderFallback(enableDecoderFallback)
-            .setEventHandler(eventHandler)
-            .setEventListener(eventListener)
-            .setMaxDroppedFramesToNotify(MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY)
-            .experimentalSetParseAv1SampleDependencies(parseAv1SampleDependencies)
-            .experimentalSetLateThresholdToDropDecoderInputUs(lateThresholdToDropDecoderInputUs)
-            .setEnableDurationToProgressUs(enableMediaCodecVideoRendererDurationToProgressUs);
+    // MIREGO: Adds ability to use a custom MediaCodecVideoRenderer by providing a custom builder for it.
+    videoRendererBuilder
+        .setCodecAdapterFactory(getCodecAdapterFactory())
+        .setMediaCodecSelector(mediaCodecSelector)
+        .setAllowedJoiningTimeMs(allowedVideoJoiningTimeMs)
+        .setEnableDecoderFallback(enableDecoderFallback)
+        .setEventHandler(eventHandler)
+        .setEventListener(eventListener)
+        .setMaxDroppedFramesToNotify(MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY)
+        .experimentalSetParseAv1SampleDependencies(parseAv1SampleDependencies)
+        .experimentalSetLateThresholdToDropDecoderInputUs(lateThresholdToDropDecoderInputUs)
+        .setEnableDurationToProgressUs(enableMediaCodecVideoRendererDurationToProgressUs);
     if (SDK_INT >= 34) {
       videoRendererBuilder =
           videoRendererBuilder.experimentalSetEnableMediaCodecBufferDecodeOnlyFlag(
@@ -604,6 +605,28 @@ public class DefaultRenderersFactory implements RenderersFactory {
       // The extension is present, but instantiation failed.
       throw new IllegalStateException("Error instantiating FFmpeg extension", e);
     }
+  }
+
+  // MIREGO: Custom MediaCodecVideoRenderer builder
+  protected void buildVideoRenderers(
+      Context context,
+      @ExtensionRendererMode int extensionRendererMode,
+      MediaCodecSelector mediaCodecSelector,
+      boolean enableDecoderFallback,
+      Handler eventHandler,
+      VideoRendererEventListener eventListener,
+      long allowedVideoJoiningTimeMs,
+      ArrayList<Renderer> out) {
+    buildVideoRenderers(
+        new MediaCodecVideoRenderer.Builder(context),
+        extensionRendererMode,
+        mediaCodecSelector,
+        enableDecoderFallback,
+        eventHandler,
+        eventListener,
+        allowedVideoJoiningTimeMs,
+        out
+    );
   }
 
   /**
