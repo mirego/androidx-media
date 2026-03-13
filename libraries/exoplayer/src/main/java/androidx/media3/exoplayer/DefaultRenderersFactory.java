@@ -432,6 +432,7 @@ public class DefaultRenderersFactory implements RenderersFactory {
       VideoRendererEventListener eventListener,
       long allowedVideoJoiningTimeMs,
       ArrayList<Renderer> out) {
+    // MIREGO: Adds ability to use a custom MediaCodecVideoRenderer by providing a  custom builder for it.
     videoRendererBuilder
         .setCodecAdapterFactory(getCodecAdapterFactory())
         .setMediaCodecSelector(mediaCodecSelector)
