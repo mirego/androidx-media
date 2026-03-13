@@ -556,10 +556,8 @@ public class DefaultRenderersFactory implements RenderersFactory {
       VideoRendererEventListener eventListener,
       long allowedVideoJoiningTimeMs,
       ArrayList<Renderer> out) {
-    MediaCodecVideoRenderer.Builder builder = new MediaCodecVideoRenderer.Builder(context);
-
     buildVideoRenderers(
-        builder,
+        new MediaCodecVideoRenderer.Builder(context),
         extensionRendererMode,
         mediaCodecSelector,
         enableDecoderFallback,
