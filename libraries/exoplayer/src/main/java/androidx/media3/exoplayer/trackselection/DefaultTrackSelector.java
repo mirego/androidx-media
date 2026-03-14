@@ -3058,6 +3058,11 @@ public class DefaultTrackSelector extends MappingTrackSelector
 
     boolean hasNoEligibleTrack = false; // MIREGO added to notify error when all video tracks are restricted
 
+    // MIREGO: skip track selection if the type is disabled. We want to avoid the useless ERROR_CODE_NO_VIDEO_TRACK_ELIGIBLE error (and also the processing)
+    if (parameters.disabledTrackTypes.contains(trackType)) {
+      return null;
+    }
+
     for (int rendererIndex = 0; rendererIndex < rendererCount; rendererIndex++) {
       if (trackType == mappedTrackInfo.getRendererType(rendererIndex)) {
         TrackGroupArray groups = mappedTrackInfo.getTrackGroups(rendererIndex);
