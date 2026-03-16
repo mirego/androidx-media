@@ -3233,6 +3233,11 @@ public class DefaultTrackSelector extends MappingTrackSelector
     ArrayList<List<T>> possibleSelections = new ArrayList<>();
     int rendererCount = mappedTrackInfo.getRendererCount();
 
+    // MIREGO: skip track selection if the type is disabled. We want to avoid the useless ERROR_CODE_NO_VIDEO_TRACK_ELIGIBLE error (and also the processing)
+    if (parameters.disabledTrackTypes.contains(trackType)) {
+      return null;
+    }
+
     boolean hasNoEligibleTrack = false; // MIREGO added to notify error when all video tracks are restricted
 
     for (int rendererIndex = 0; rendererIndex < rendererCount; rendererIndex++) {
