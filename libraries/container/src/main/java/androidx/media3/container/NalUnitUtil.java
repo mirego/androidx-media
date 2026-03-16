@@ -638,11 +638,10 @@ public final class NalUnitUtil {
    *     the {@code MimeType} is {@code null}.
    */
   public static boolean isNalUnitSei(Format format, byte nalUnitHeaderFirstByte) {
-    return ((Objects.equals(format.sampleMimeType, MimeTypes.VIDEO_H264)
-                || containsCodecsCorrespondingToMimeType(format.codecs, MimeTypes.VIDEO_H264))
+    String nalStructureMimeType = getNalStructureMimeType(format);
+    return (MimeTypes.VIDEO_H264.equals(nalStructureMimeType)
             && (nalUnitHeaderFirstByte & 0x1F) == H264_NAL_UNIT_TYPE_SEI)
-        || ((Objects.equals(format.sampleMimeType, MimeTypes.VIDEO_H265)
-                || containsCodecsCorrespondingToMimeType(format.codecs, MimeTypes.VIDEO_H265))
+        || (MimeTypes.VIDEO_H265.equals(nalStructureMimeType)
             && ((nalUnitHeaderFirstByte & 0x7E) >> 1) == H265_NAL_UNIT_TYPE_PREFIX_SEI);
   }
 
@@ -705,14 +704,43 @@ public final class NalUnitUtil {
    * @param format The sample {@link Format}.
    */
   public static int numberOfBytesInNalUnitHeader(Format format) {
-    if (Objects.equals(format.sampleMimeType, MimeTypes.VIDEO_H264)) {
+    String nalStructureMimeType = getNalStructureMimeType(format);
+    if (MimeTypes.VIDEO_H264.equals(nalStructureMimeType)) {
       return 1;
     }
-    if (Objects.equals(format.sampleMimeType, MimeTypes.VIDEO_H265)
-        || MimeTypes.containsCodecsCorrespondingToMimeType(format.codecs, MimeTypes.VIDEO_H265)) {
+    if (MimeTypes.VIDEO_H265.equals(nalStructureMimeType)) {
       return 2;
     }
     return 0;
+  }
+
+  /**
+   * Returns {@link Format#sampleMimeType}, or the MIME type of the structure of the underlying NAL
+   * units if different.
+   *
+   * <p>For example, Dolby Vision content (with MIME type {@link MimeTypes#VIDEO_DOLBY_VISION}) can
+   * be encoded with H.264 or H.265 NAL units.
+   *
+   * <p>Note: This only indicates the structure of the NAL units, it does not necessarily mean the
+   * content can be correctly decoded by a decoder of the returned MIME type (backwards
+   * compatibility). This can be queried with {@code
+   * androidx.media3.exoplayer.decoder.MediaCodecUtil#getAlternativeCodecMimeType(Format)} instead.
+   */
+  @Nullable
+  private static String getNalStructureMimeType(Format format) {
+    if (format.codecs != null) {
+      // Check each codec string for Dolby Vision prefixes that imply a specific NAL structure.
+      for (String codec : format.codecs.split(",")) {
+        codec = codec.trim();
+        if (codec.startsWith("dvh1") || codec.startsWith("dvhe")) {
+          return MimeTypes.VIDEO_H265;
+        }
+        if (codec.startsWith("dva1") || codec.startsWith("dvav")) {
+          return MimeTypes.VIDEO_H264;
+        }
+      }
+    }
+    return format.sampleMimeType;
   }
 
   /**
