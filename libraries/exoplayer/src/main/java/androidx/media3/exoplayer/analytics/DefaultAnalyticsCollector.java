@@ -568,6 +568,14 @@ public class DefaultAnalyticsCollector implements AnalyticsCollector {
         eventTime,
         AnalyticsListener.EVENT_PLAYBACK_STATE_CHANGED,
         listener -> listener.onPlaybackStateChanged(eventTime, playbackState));
+
+    // MIREGO added block to clear events between playbacks
+    if (playbackState == Player.STATE_IDLE) {
+      // Clear eventTimes to release references to Timeline/MediaItem objects from past playbacks.
+      // MSG_ITERATION_FINISHED is always sent to the front of the handler queue, so posting this
+      // to the back guarantees all pending onEvents deliveries complete before we clear.
+      checkNotNull(handler).post(eventTimes::clear);
+    }
   }
 
   @Override
