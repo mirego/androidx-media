@@ -1271,7 +1271,7 @@ public final class DefaultAudioSink implements AudioSink {
     if (outputBuffer == null) {
 
       // MIREGO
-      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "writeBuffer outputBuffer == null");
+      Log.v(Log.LOG_LEVEL_VERBOSE2, TAG, "writeBuffer outputBuffer == null");
 
       return;
     }

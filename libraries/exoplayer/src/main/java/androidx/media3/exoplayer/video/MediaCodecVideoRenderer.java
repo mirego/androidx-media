@@ -1430,9 +1430,12 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
     @DecoderDiscardReasons int discardReasons = evaluation.discardReasons;
     CodecMaxValues codecMaxValues = checkNotNull(this.codecMaxValues);
     if (newFormat.width > codecMaxValues.width || newFormat.height > codecMaxValues.height) {
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "canReuseCodec DISCARD_REASON_VIDEO_MAX_RESOLUTION_EXCEEDED (%d %d) %d %d", newFormat.width, newFormat.height,
+          codecMaxValues.width, codecMaxValues.height);
       discardReasons |= DISCARD_REASON_VIDEO_MAX_RESOLUTION_EXCEEDED;
     }
     if (getMaxInputSize(codecInfo, newFormat) > codecMaxValues.inputSize) {
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "canReuseCodec DISCARD_REASON_MAX_INPUT_SIZE_EXCEEDED");
       discardReasons |= DISCARD_REASON_MAX_INPUT_SIZE_EXCEEDED;
     }
     if (changeFrameRateStrategy != C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF
