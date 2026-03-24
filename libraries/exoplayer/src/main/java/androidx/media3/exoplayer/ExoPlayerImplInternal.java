@@ -805,6 +805,7 @@ import java.util.Objects;
           return false;
       }
     } catch (ExoPlaybackException e) {
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "handleMessage error %s", e);
       if (e.type == ExoPlaybackException.TYPE_RENDERER) {
         @Nullable MediaPeriodHolder readingPeriod = queue.getReadingPeriod();
         if (readingPeriod != null && e.mediaPeriodId == null) {
@@ -849,6 +850,7 @@ import java.util.Objects;
           MediaPeriodHolder newPlayingPeriodHolder = checkNotNull(queue.getPlayingPeriod());
           // Send already pending updates if needed before making further changes to PlaybackInfo.
           maybeNotifyPlaybackInfoChanged();
+          Log.d(TAG, "handlePositionDiscontinuity: handleMessage got renderer PlaybackException %s", e);
           playbackInfo =
               handlePositionDiscontinuity(
                   newPlayingPeriodHolder.info.id,
@@ -2907,7 +2909,8 @@ import java.util.Objects;
                   != newPlayingPeriodHolder.info.id.nextAdGroupIndex;
 
       // MIREGO
-      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "maybeUpdatePlayingPeriod changing period  start: %d  duration: %d", newPlayingPeriodHolder.info.startPositionUs, newPlayingPeriodHolder.info.durationUs);
+      Log.v(Log.LOG_LEVEL_VERBOSE1, TAG, "maybeUpdatePlayingPeriod changing period  start: %d  duration: %d  isCancelledSSAIAdTransition: %s",
+          newPlayingPeriodHolder.info.startPositionUs, newPlayingPeriodHolder.info.durationUs, isCancelledSSAIAdTransition);
 
       playbackInfo =
           handlePositionDiscontinuity(
