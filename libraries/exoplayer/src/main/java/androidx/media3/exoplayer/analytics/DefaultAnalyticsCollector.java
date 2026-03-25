@@ -73,9 +73,9 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
 public class DefaultAnalyticsCollector implements AnalyticsCollector {
 
   private final Clock clock;
-  private final Period period;
-  private final Window window;
-  private final MediaPeriodQueueTracker mediaPeriodQueueTracker;
+  private Period period; // MIREGO: removed final to reset when flushing
+  private Window window; // MIREGO: removed final to reset when flushing
+  private MediaPeriodQueueTracker mediaPeriodQueueTracker; // MIREGO: removed final to reset when flushing
   private final SparseArray<EventTime> eventTimes;
 
   private ListenerSet<AnalyticsListener> listeners;
@@ -130,6 +130,7 @@ public class DefaultAnalyticsCollector implements AnalyticsCollector {
     checkState(this.player == null || mediaPeriodQueueTracker.mediaPeriodQueue.isEmpty());
     this.player = checkNotNull(player);
     handler = clock.createHandler(looper, null);
+    resetBetweenPlaybacks();
     listeners =
         listeners.copy(
             looper,
@@ -568,6 +569,14 @@ public class DefaultAnalyticsCollector implements AnalyticsCollector {
         eventTime,
         AnalyticsListener.EVENT_PLAYBACK_STATE_CHANGED,
         listener -> listener.onPlaybackStateChanged(eventTime, playbackState));
+
+    // MIREGO added block to clear events between playbacks
+    if (playbackState == Player.STATE_IDLE) {
+      // Reset data from previous playback to release references to Timeline/MediaItem objects from past playbacks.
+      // MSG_ITERATION_FINISHED is always sent to the front of the handler queue, so posting this
+      // to the back guarantees all pending onEvents deliveries complete before we clear.
+      checkNotNull(handler).post(this::resetBetweenPlaybacks);
+    }
   }
 
   @Override
@@ -913,6 +922,14 @@ public class DefaultAnalyticsCollector implements AnalyticsCollector {
       EventTime eventTime, int eventFlag, ListenerSet.Event<AnalyticsListener> eventInvocation) {
     eventTimes.put(eventFlag, eventTime);
     listeners.sendEvent(eventFlag, eventInvocation);
+  }
+
+  // MIREGO: clear eventTimes, to avoids retaining event times and stuff from previous playbacks
+  private void resetBetweenPlaybacks() {
+    eventTimes.clear();
+    period = new Period();
+    window = new Window();
+    mediaPeriodQueueTracker = new MediaPeriodQueueTracker(period);
   }
 
   /** Generates an {@link EventTime} for the currently playing item in the player. */
