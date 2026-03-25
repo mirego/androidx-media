@@ -273,7 +273,12 @@ public class SampleQueue implements TrackOutput {
     if (length == 0) {
       return;
     }
-    checkArgument(timeUs > getLargestReadTimestampUs());
+    // MIREGO modified argument check code to log before failing the check
+    long  largestReadTimestampUs = getLargestReadTimestampUs();
+    if (timeUs <= largestReadTimestampUs) {
+      Log.d(TAG, "timeUs (%d) <= largestReadTimestampUs (%d) checkArgument will fail", timeUs, largestReadTimestampUs);
+    }
+    checkArgument(timeUs > largestReadTimestampUs);
     int retainCount = countUnreadSamplesBefore(timeUs);
     discardUpstreamSamples(absoluteFirstIndex + retainCount);
   }
