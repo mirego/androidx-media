@@ -130,6 +130,7 @@ public class DefaultAnalyticsCollector implements AnalyticsCollector {
     checkState(this.player == null || mediaPeriodQueueTracker.mediaPeriodQueue.isEmpty());
     this.player = checkNotNull(player);
     handler = clock.createHandler(looper, null);
+    resetBetweenPlaybacks();
     listeners =
         listeners.copy(
             looper,
