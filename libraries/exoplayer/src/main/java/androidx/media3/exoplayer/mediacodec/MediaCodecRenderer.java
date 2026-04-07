@@ -1532,6 +1532,13 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
     codecDrmSession = session;
   }
 
+  // MIREGO : Added to prevent an issue on some devices where the video would still render when paused in tunneled playback if we continue feeding the buffer.
+  // It looks like it's rendering when it's full, so if we keep sending frames, we don't get to a point where the codec wouldn't return an available buffer until the playback is resumed.
+  // Instead, it renders a bunch of frames from time to time, and it keeps getting more and more ahead of the audio feed. Overriden for the video renderer.
+  protected boolean allowFeedInputBuffer() {
+    return true;
+  }
+
   /**
    * @return Whether it may be possible to feed more input data.
    * @throws ExoPlaybackException If an error occurs feeding the input buffer.
@@ -1540,6 +1547,11 @@ public abstract class MediaCodecRenderer extends BaseRenderer {
     // MIREGO
     Log.v(Log.LOG_LEVEL_VERBOSE3, TAG, "feedInputBuffer(type:%d) codecDrainState %d inputStreamEnded: %s",
         getTrackType(), codecDrainState, inputStreamEnded);
+
+    // MIREGO added to work around an issue in tunneled playback when paused on some devices
+    if (!allowFeedInputBuffer()) {
+      return false;
+    }
 
     if (codec == null || codecDrainState == DRAIN_STATE_WAIT_END_OF_STREAM || inputStreamEnded) {
       saveFeedInputBufferStep(1);
