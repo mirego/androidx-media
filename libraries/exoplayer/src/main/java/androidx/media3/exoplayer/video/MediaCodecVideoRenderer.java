@@ -1139,7 +1139,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
     if (videoFrameReleaseEarlyTimeForecaster != null) {
       videoFrameReleaseEarlyTimeForecaster.reset();
     }
-    isStopped = true; //MIREGO added
+    isStopped = true; // MIREGO added
     super.onStopped();
   }
 
