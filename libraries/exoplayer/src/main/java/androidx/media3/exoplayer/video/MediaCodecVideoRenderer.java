@@ -269,6 +269,8 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
   private int consecutiveDroppedInputBufferCount;
   private long nextOutputBufferToProcessPresentationTimeUs;
 
+  private boolean isStopped = false; // MIREGO: added
+
   /** A builder to create {@link MediaCodecVideoRenderer} instances. */
   // MIREGO: Make class non-final to allow custom Builder subclass to be provided to DefaultRenderersFactory.buildVideoRenderers.
   public static class Builder {
@@ -1237,7 +1239,16 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
     hasNotifiedAvDesyncSkippedFramesError = false;
     queuedFrames = 0;
 
+    isStopped = false; // MIREGO: added
     videoFrameReleaseControl.onStarted();
+  }
+
+  // MIREGO : Added to prevent an issue on some devices where the video would still render when paused in tunneled playback if we continue feeding the buffer.
+  // It looks like it's rendering when it's full, so if we keep sending frames, we don't get to a point where the codec wouldn't return an available buffer until the playback is resumed.
+  // Instead, it renders a bunch of frames from time to time, and it keeps getting more and more ahead of the audio feed.
+  // Blocking the feeding of the input buffer while we're paused in tunneling prevents that situation.
+  protected boolean allowFeedInputBuffer() {
+    return !isStopped || !tunneling;
   }
 
   @Override
@@ -1253,6 +1264,7 @@ public class MediaCodecVideoRenderer extends MediaCodecRenderer
     if (videoFrameReleaseEarlyTimeForecaster != null) {
       videoFrameReleaseEarlyTimeForecaster.reset();
     }
+    isStopped = true; // MIREGO added
     super.onStopped();
   }
 
