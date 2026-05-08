@@ -114,7 +114,9 @@ public final class HttpMediaDrmCallback implements MediaDrmCallback {
 
   // MIREGO
   public Map<String, String> getKeyRequestProperties() {
-    return keyRequestProperties;
+    synchronized (keyRequestProperties) {
+      return ImmutableMap.copyOf(keyRequestProperties);
+    }
   }
 
   @Override
