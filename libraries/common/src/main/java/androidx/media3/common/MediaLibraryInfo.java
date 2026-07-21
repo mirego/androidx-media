@@ -28,11 +28,11 @@ public final class MediaLibraryInfo {
 
   /** The version of the library expressed as a string, for example "1.2.3" or "1.2.0-beta01". */
   // Intentionally hardcoded. Do not derive from other constants (e.g. VERSION_INT) or vice versa.
-  public static final String VERSION = "1.9.4";
+  public static final String VERSION = "1.9.4.0001";
 
   /** The version of the library expressed as {@code TAG + "/" + VERSION}. */
   // Intentionally hardcoded. Do not derive from other constants (e.g. VERSION) or vice versa.
-  public static final String VERSION_SLASHY = "AndroidXMedia3/1.9.4";
+  public static final String VERSION_SLASHY = "AndroidXMedia3/1.9.4.0001";
 
   /**
    * The version of the library expressed as an integer, for example 1002003300.
