@@ -19,7 +19,8 @@ tag and replay the previous branch's mirego commits onto it.
 - **Never `git push`. Never change the GitHub default branch.** Stop and hand off to the human.
 - **Never skip or disable a pre-commit hook.**
 - The branch-name suffix **is** the upstream base tag: `mirego-main-1.9.4` is tag `1.9.4` + fixes.
-- `origin` = mirego fork (`github.com/mirego/androidx-media`), `upstream` = `androidx/media`.
+- `origin` = the mirego fork you cloned. Upstream releases live at
+  `https://github.com/androidx/media`.
 - Interactive rebase (`git rebase -i` with a real editor) is not available. Drive autosquash
   non-interactively with `GIT_SEQUENCE_EDITOR=true GIT_EDITOR=true`.
 - Match surrounding code style. Mirego edits are marked with `// MIREGO` comments — preserve that.
@@ -28,7 +29,7 @@ tag and replay the previous branch's mirego commits onto it.
 
 1. Require a clean tree. Run `git status --porcelain`; if non-empty, **abort** and tell the dev
    to commit or stash first.
-2. `git fetch upstream --tags` and `git fetch origin`.
+2. `git fetch https://github.com/androidx/media.git --tags` and `git fetch origin`.
 3. Verify the upstream tag exists: `git rev-parse --verify refs/tags/<NEW>`. If missing, abort
    (the release may not be tagged yet).
 
