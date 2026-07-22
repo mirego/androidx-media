@@ -89,19 +89,20 @@ Print and **wait for the dev to say go** before creating any commit:
      `hasPendingAudioOutputReleases`; `audioTrackPositionUs` → `audioOutputPositionUs`;
      `isFormatFunctionallySupported(format)` → `(context, format)`). Expect these; take HEAD and
      re-thread mirego intent through the new API.
-5. **Flag, don't silently decide:** every time you make a *behavioral* call (a feature/log dropped,
+5. **Version stamp — fold into `Setup CI/CD`:** when the replay reaches the `Setup CI/CD` commit,
+   cherry-pick and resolve it as usual, then apply the Step 3 stamp and `git commit --amend --no-edit`
+   so this commit carries `<NEW>.0001` from the start — no separate initial increment commit:
+   - `constants.gradle`: `releaseVersion = '<NEW>.0001'` and `releaseVersionCode = <code>`.
+   - `libraries/common/src/main/java/androidx/media3/common/MediaLibraryInfo.java`:
+     `VERSION = "<NEW>.0001"`, `VERSION_SLASHY = "AndroidXMedia3/<NEW>.0001"`, `VERSION_INT = <code>`.
+   Future per-build bumps stay their own `Increment version to <NEW>.000N` commits; only the initial
+   `.0001` stamp lives in `Setup CI/CD`.
+6. **Flag, don't silently decide:** every time you make a *behavioral* call (a feature/log dropped,
    a partial port, a workaround whose call-site or API changed), record it as a **flagged item** with
    file + commit + what you did + why. Stop for the human **only** when a semantic port is genuinely
    ambiguous and you cannot justify a default.
 
-## Step 6 — Version stamp
-
-Edit and commit (subject: `Increment version to <NEW>.0001`):
-- `constants.gradle`: `releaseVersion = '<NEW>.0001'` and `releaseVersionCode = <code>`.
-- `libraries/common/src/main/java/androidx/media3/common/MediaLibraryInfo.java`:
-  `VERSION = "<NEW>.0001"`, `VERSION_SLASHY = "AndroidXMedia3/<NEW>.0001"`, `VERSION_INT = <code>`.
-
-## Step 7 — Build the tip
+## Step 6 — Build the tip
 
 Compile `lib-exoplayer` plus every module whose files were touched by the replay
 (derive from `git diff --name-only <NEW>..HEAD` → module roots under `libraries/`):
@@ -112,9 +113,9 @@ Compile `lib-exoplayer` plus every module whose files were touched by the replay
 
 Requires network (mirego gradle-init plugin). Do **not** use `--offline`.
 
-## Step 8 — Fold compile fixes into their owning commits
+## Step 7 — Fold compile fixes into their owning commits
 
-If Step 7 fails, do **not** leave a "fix compilation" commit on top. Fold each fix into the commit
+If Step 6 fails, do **not** leave a "fix compilation" commit on top. Fold each fix into the commit
 that introduced the broken reference:
 
 1. Fix each error in the working tree; confirm the tip builds.
@@ -133,7 +134,7 @@ that introduced the broken reference:
 Apply the same backup-ref + fixup + autosquash flow for **any** later history rewrite (e.g. completing
 a partially-ported fix — fold it into its owning commit, not on top).
 
-## Step 9 — Verify flagged items
+## Step 8 — Verify flagged items
 
 For each flagged item from Step 5, attempt verification and state findings:
 - **Redundant with upstream?** `git merge-base --is-ancestor <upstream-fix-sha> <NEW>` → if yes, the
@@ -146,7 +147,7 @@ For each flagged item from Step 5, attempt verification and state findings:
   time** (`getFormatConfig(...).setAudioSessionId(tunneling ? tunnelingAudioSessionId : audioSessionId)`),
   not merely track two ids.
 
-## Step 10 — Report and stop
+## Step 9 — Report and stop
 
 Do not push. Produce a concise report:
 - Branch, base tag, commit count (`git rev-list --count <NEW>..HEAD`), version stamp.
