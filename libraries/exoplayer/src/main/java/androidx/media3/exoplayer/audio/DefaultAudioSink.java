@@ -1000,7 +1000,7 @@ public final class DefaultAudioSink implements AudioSink {
         // MIREGO workaround volume issue on buggy platform. It's possible something stays stuck after starting another app on the device. Creating and releasing an audioTrack seems to solve it.
         if (workaroundAudioVolumePlatformGlitch) {
           workaroundAudioVolumePlatformGlitch = false;
-          audioOutput.release();
+          audioOutput.release(() -> {}); // MIREGO
           audioOutput = null;
           return false;
         }
@@ -1621,7 +1621,9 @@ public final class DefaultAudioSink implements AudioSink {
       // on some devices. See b/7941810 or b/19193985.
       // TODO: b/143500232 - Experiment with not releasing AudioOutput on flush.
       pendingReleaseCount.incrementAndGet();
-      audioOutput.release();
+      // MIREGO workaround the looper thread that might be killed before receiving the onReleased
+      // event, which would prevent decrementing the pendingReleaseCount. Use a callback instead.
+      audioOutput.release(pendingReleaseCount::decrementAndGet);
       audioOutput = null;
     }
     writeExceptionPendingExceptionHolder.clear();
@@ -2090,7 +2092,9 @@ public final class DefaultAudioSink implements AudioSink {
     public void onReleased() {
       // Don't check for stale events. It's expected that this event arrives after the class field
       // has been updated to null or a new listener.
-      pendingReleaseCount.getAndDecrement();
+      // MIREGO pendingReleaseCount is decremented from the release completion callback passed in
+      // flush(), not from here, because this event is not guaranteed to be delivered.
+      // pendingReleaseCount.getAndDecrement();
       if (listener != null) {
         listener.onAudioTrackReleased(
             new AudioTrackConfig(

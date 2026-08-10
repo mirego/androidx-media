@@ -304,7 +304,7 @@ public final class AudioTrackAudioOutput implements AudioOutput {
   }
 
   @Override
-  public void release() {
+  public void release(/* MIREGO */ Runnable onReleaseCompleted) {
     if (audioTrackPositionTracker.isPlaying()) {
       audioTrack.pause();
     }
@@ -315,7 +315,7 @@ public final class AudioTrackAudioOutput implements AudioOutput {
       onRoutingChangedListener.release();
       onRoutingChangedListener = null;
     }
-    releaseAudioTrackAsync(audioTrack, listeners);
+    releaseAudioTrackAsync(audioTrack, listeners, onReleaseCompleted); // MIREGO
   }
 
   @Override
@@ -468,7 +468,9 @@ public final class AudioTrackAudioOutput implements AudioOutput {
   }
 
   private static void releaseAudioTrackAsync(
-      AudioTrack audioTrack, ListenerSet<Listener> listeners) {
+      AudioTrack audioTrack,
+      ListenerSet<Listener> listeners,
+      /* MIREGO */ Runnable onReleaseCompleted) {
     // AudioTrack.release can take some time, so we call it on a background thread. The background
     // thread is shared statically to avoid creating many threads when multiple players are released
     // at the same time.
@@ -488,6 +490,9 @@ public final class AudioTrackAudioOutput implements AudioOutput {
                   audioTrack.flush();
                   audioTrack.release();
                 } finally {
+                  // MIREGO we must indicate the release is completed, to decreased properly the
+                  // audio tracks count. Do not rely on the thread to still be alive for that.
+                  onReleaseCompleted.run();
                   if (audioTrackThreadHandler.getLooper().getThread().isAlive()) {
                     audioTrackThreadHandler.post(
                         () -> {
@@ -495,8 +500,6 @@ public final class AudioTrackAudioOutput implements AudioOutput {
                             listeners.sendEvent(Listener::onReleased);
                           }
                         });
-                  } else { // MIREGO: that message should always be sent, otherwise the audio tracks count will not get decreased properly and stay > 0 indefinitely
-                    listeners.sendEvent(Listener::onReleased);
                   }
                   synchronized (releaseExecutorLock) {
                     pendingReleaseCount--;
