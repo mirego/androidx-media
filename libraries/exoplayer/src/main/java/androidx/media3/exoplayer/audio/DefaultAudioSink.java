@@ -2101,7 +2101,6 @@ public final class DefaultAudioSink implements AudioSink {
       // has been updated to null or a new listener.
       // MIREGO pendingReleaseCount is decremented from the release completion callback passed in
       // flush(), not from here, because this event is not guaranteed to be delivered.
-      // pendingReleaseCount.getAndDecrement();
       if (listener != null) {
         listener.onAudioTrackReleased(
             new AudioTrackConfig(
