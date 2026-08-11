@@ -1000,8 +1000,7 @@ public final class DefaultAudioSink implements AudioSink {
         // MIREGO workaround volume issue on buggy platform. It's possible something stays stuck after starting another app on the device. Creating and releasing an audioTrack seems to solve it.
         if (workaroundAudioVolumePlatformGlitch) {
           workaroundAudioVolumePlatformGlitch = false;
-          audioOutput.release(() -> {}); // MIREGO
-          audioOutput = null;
+          audioOutputRelease();
           return false;
         }
 
@@ -1620,11 +1619,7 @@ public final class DefaultAudioSink implements AudioSink {
       // We need to release the audio output on every flush because of known AudioTrack flush issues
       // on some devices. See b/7941810 or b/19193985.
       // TODO: b/143500232 - Experiment with not releasing AudioOutput on flush.
-      pendingReleaseCount.incrementAndGet();
-      // MIREGO workaround the looper thread that might be killed before receiving the onReleased
-      // event, which would prevent decrementing the pendingReleaseCount. Use a callback instead.
-      audioOutput.release(pendingReleaseCount::decrementAndGet);
-      audioOutput = null;
+      audioOutputRelease(); // MIREGO
     }
     writeExceptionPendingExceptionHolder.clear();
     initializationExceptionPendingExceptionHolder.clear();
@@ -1633,6 +1628,18 @@ public final class DefaultAudioSink implements AudioSink {
     if (reportSkippedSilenceHandler != null) {
       checkNotNull(reportSkippedSilenceHandler).removeCallbacksAndMessages(null);
     }
+  }
+
+  /**
+   * MIREGO workaround the looper thread that might be killed before receiving the onReleased
+   * event, which would prevent decrementing the pendingReleaseCount. Use a callback instead.
+   * This fix pendingReleaseCount staying greater than 0, which prevent playback from starting.
+   */
+  private void audioOutputRelease() {
+    checkNotNull(audioOutput); // Check is just for linting, calling functions validated already.
+    pendingReleaseCount.incrementAndGet();
+    audioOutput.release(pendingReleaseCount::decrementAndGet);
+    audioOutput = null;
   }
 
   @Override
