@@ -126,8 +126,12 @@ public interface AudioOutput {
    */
   void stop();
 
-  /** Releases the {@link AudioOutput}. */
-  void release();
+  /**
+   * MIREGO
+   * <p>Releases the {@link AudioOutput}, invoking {@code onReleaseCompleted} once the
+   * underlying resources have actually been released.
+   */
+  void release(/* MIREGO */ Runnable onReleaseCompleted);
 
   /** Sets the volume of the {@link AudioOutput}. */
   void setVolume(float volume);

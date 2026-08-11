@@ -68,8 +68,8 @@ public class ForwardingAudioOutput implements AudioOutput {
   }
 
   @Override
-  public void release() {
-    audioOutput.release();
+  public void release(/* MIREGO */ Runnable onReleaseCompleted) {
+    audioOutput.release(onReleaseCompleted);
   }
 
   @Override
