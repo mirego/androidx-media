@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MPD
+    xmlns="urn:mpeg:dash:schema:mpd:2011"
+    type="dynamic"
+    availabilityStartTime="2020-01-01T00:00:00Z"
+    minimumUpdatePeriod="PT60S"
+    minBufferTime="PT1S">
+  <UTCTiming
+      schemeIdUri="urn:mpeg:dash:utc:direct:2014"
+      value="2020-01-01T00:02:00Z"/>
+  <Period id="p0" start="PT0S">
+    <AdaptationSet id="1" contentType="video">
+      <Representation id="v0" bandwidth="100000" mimeType="video/mp4">
+        <SegmentTemplate
+            timescale="1000"
+            presentationTimeOffset="0"
+            startNumber="1"
+            initialization="p0-init.mp4"
+            media="p0-$Time$.m4s">
+          <SegmentTimeline>
+            <S t="261000" d="10000"/>
+          </SegmentTimeline>
+        </SegmentTemplate>
+      </Representation>
+    </AdaptationSet>
+  </Period>
+  <Period id="p1" start="PT105S">
+    <AdaptationSet id="2" contentType="video">
+      <Representation id="v1" bandwidth="100000" mimeType="video/mp4">
+        <SegmentTemplate
+            timescale="1000"
+            presentationTimeOffset="0"
+            startNumber="1"
+            initialization="p1-init.mp4"
+            media="p1-$Time$.m4s">
+          <SegmentTimeline>
+            <S t="0" d="3000"/>
+          </SegmentTimeline>
+        </SegmentTemplate>
+      </Representation>
+    </AdaptationSet>
+  </Period>
+</MPD>

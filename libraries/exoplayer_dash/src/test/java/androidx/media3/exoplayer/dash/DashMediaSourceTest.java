@@ -40,12 +40,14 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import com.google.common.collect.ImmutableList;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.shadows.ShadowSystemClock;
 
 /** Unit test for {@link DashMediaSource}. */
 @RunWith(AndroidJUnit4.class)
@@ -68,6 +70,14 @@ public final class DashMediaSourceTest {
       "media/mpd/sample_mpd_live_with_offset_too_short";
   private static final String SAMPLE_MPD_LIVE_WITH_OFFSET_TOO_LONG =
       "media/mpd/sample_mpd_live_with_offset_too_long";
+  private static final String SAMPLE_MPD_LIVE_BEFORE_PERIOD_TRANSITION =
+      "media/mpd/sample_mpd_live_before_period_transition";
+  private static final String SAMPLE_MPD_LIVE_DURING_PERIOD_TRANSITION =
+      "media/mpd/sample_mpd_live_during_period_transition";
+  private static final String SAMPLE_MPD_LIVE_WITH_EXTERNAL_SEGMENT_INDEX =
+      "media/mpd/sample_mpd_live_with_external_segment_index";
+  private static final String SAMPLE_MPD_LIVE_WITH_INCONSISTENT_PERIOD_SEGMENT_TIMING =
+      "media/mpd/sample_mpd_live_with_inconsistent_period_segment_timing";
 
   @Test
   public void iso8601ParserParse() throws IOException {
@@ -450,6 +460,89 @@ public final class DashMediaSourceTest {
   }
 
   @Test
+  public void periodTransition_newPeriodHasNoAvailableSegment_windowRemainsValid()
+      throws Exception {
+    byte[] manifestBeforeTransition = getSampleMpdData(SAMPLE_MPD_LIVE_BEFORE_PERIOD_TRANSITION);
+    byte[] manifestDuringTransition = getSampleMpdData(SAMPLE_MPD_LIVE_DURING_PERIOD_TRANSITION);
+    AtomicBoolean servedInitialManifest = new AtomicBoolean();
+    DashMediaSource mediaSource =
+        new DashMediaSource.Factory(
+                () ->
+                    new ByteArrayDataSource(
+                        unusedUri ->
+                            servedInitialManifest.getAndSet(true)
+                                ? manifestDuringTransition
+                                : manifestBeforeTransition))
+            .createMediaSource(MediaItem.fromUri(Uri.EMPTY));
+    List<Window> capturedWindows = new ArrayList<>();
+    MediaSource.MediaSourceCaller mediaSourceCaller =
+        (source, timeline) ->
+            capturedWindows.add(timeline.getWindow(/* windowIndex= */ 0, new Window()));
+
+    mediaSource.prepareSource(mediaSourceCaller, /* mediaTransferListener= */ null, PlayerId.UNSET);
+
+    // The initial explicit index covers [0, 60] seconds. The time-shift buffer isn't applied to
+    // explicit indexes, so the full range is exposed.
+    RobolectricUtil.runMainLooperUntil(() -> capturedWindows.size() == 1);
+    assertThat(capturedWindows.get(0).getPositionInFirstPeriodMs()).isEqualTo(0);
+    assertThat(capturedWindows.get(0).getDurationMs()).isEqualTo(60_000);
+
+    // At 64 seconds the newly announced period starts at 60 seconds, but its first ten-second
+    // segment isn't available yet. Its period start is therefore the available end, while the
+    // time-shift buffer moves the available start to 40 seconds.
+    ShadowSystemClock.advanceBy(Duration.ofSeconds(5));
+    RobolectricUtil.runMainLooperUntil(() -> capturedWindows.size() == 2);
+    assertThat(capturedWindows.get(1).getPositionInFirstPeriodMs()).isEqualTo(40_000);
+    assertThat(capturedWindows.get(1).getDurationMs()).isEqualTo(20_000);
+
+    // Video becomes available first, but the common window remains at the period boundary until
+    // audio is also available.
+    ShadowSystemClock.advanceBy(Duration.ofSeconds(6));
+    RobolectricUtil.runMainLooperUntil(() -> capturedWindows.size() == 3);
+    assertThat(capturedWindows.get(2).getPositionInFirstPeriodMs()).isEqualTo(40_000);
+    assertThat(capturedWindows.get(2).getDurationMs()).isEqualTo(20_000);
+
+    // Once both adaptation sets have an available segment, both window bounds move forward
+    // together. The common end is the earlier video segment end at 70 seconds.
+    ShadowSystemClock.advanceBy(Duration.ofSeconds(2));
+    RobolectricUtil.runMainLooperUntil(() -> capturedWindows.size() == 4);
+    assertThat(capturedWindows.get(3).getPositionInFirstPeriodMs()).isEqualTo(50_000);
+    assertThat(capturedWindows.get(3).getDurationMs()).isEqualTo(20_000);
+  }
+
+  @Test
+  public void prepare_dynamicLastPeriodWithExternalSegmentIndex_windowDurationIsUnset()
+      throws Exception {
+    DashMediaSource mediaSource =
+        new DashMediaSource.Factory(
+                () -> createSampleMpdDataSource(SAMPLE_MPD_LIVE_WITH_EXTERNAL_SEGMENT_INDEX))
+            .createMediaSource(MediaItem.fromUri(Uri.EMPTY));
+
+    Window window = prepareAndWaitForTimelineRefresh(mediaSource);
+
+    assertThat(window.getPositionInFirstPeriodMs()).isEqualTo(0);
+    assertThat(window.getDurationMs()).isEqualTo(C.TIME_UNSET);
+  }
+
+  @Test
+  public void prepare_segmentStartsAfterItsPeriodEnds_exposesNegativeWindowDuration()
+      throws Exception {
+    DashMediaSource mediaSource =
+        new DashMediaSource.Factory(
+                () ->
+                    createSampleMpdDataSource(
+                        SAMPLE_MPD_LIVE_WITH_INCONSISTENT_PERIOD_SEGMENT_TIMING))
+            .createMediaSource(MediaItem.fromUri(Uri.EMPTY));
+
+    Window window = prepareAndWaitForTimelineRefresh(mediaSource);
+
+    // The first period ends at 105 seconds but its only segment starts at 261 seconds. Media3 does
+    // not reject this inconsistent geometry before subtracting the last-period end at 108 seconds.
+    assertThat(window.getPositionInFirstPeriodMs()).isEqualTo(261_000);
+    assertThat(window.getDurationMs()).isEqualTo(-153_000);
+  }
+
+  @Test
   public void prepare_targetLiveOffsetConstrainedByManifest_resetByRelease() throws Exception {
     LiveConfiguration mediaItemLiveConfiguration =
         new LiveConfiguration.Builder().setTargetOffsetMs(25_000L).build();
@@ -659,13 +752,16 @@ public final class DashMediaSourceTest {
   }
 
   private static DataSource createSampleMpdDataSource(String fileName) {
-    byte[] manifestData = new byte[0];
+    return new ByteArrayDataSource(getSampleMpdData(fileName));
+  }
+
+  private static byte[] getSampleMpdData(String fileName) {
     try {
-      manifestData = TestUtil.getByteArray(ApplicationProvider.getApplicationContext(), fileName);
+      return TestUtil.getByteArray(ApplicationProvider.getApplicationContext(), fileName);
     } catch (IOException e) {
       fail(e.getMessage());
+      return new byte[0];
     }
-    return new ByteArrayDataSource(manifestData);
   }
 
   private static void assertParseStringToLong(
